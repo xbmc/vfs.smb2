@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon
+  id="vfs.smb2"
+  version="1.0.0"
+  name="SMB support (libsmb2)"
+  provider-name="afedchin">
+  <requires>@ADDON_DEPENDS@</requires>
+  <extension
+    point="kodi.vfs"
+    protocols="smb"
+    files="true"
+    directories="true"
+    zeroconf="_smb._tcp."
+    supportPath="true"
+    supportUsername="true"
+    supportPassword="true"
+    supportPort="false"
+    supportDialog="true"
+    defaultPort="0"
+    label="20171"
+    library_@PLATFORM@="@LIBRARY_FILENAME@" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en">The add-on provides SMB2/3 protocol support</summary>
+    <description lang="en">The add-on provides SMB2/3 protocol support</description>
+    <platform>@PLATFORM@</platform>
+  </extension>
+</addon>

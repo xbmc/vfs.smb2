@@ -1,1 +1,1 @@
-smb https://github.com/afedchin/libsmb2 ntlmssp-win10
+smb https://github.com/sahlberg/libsmb2 master

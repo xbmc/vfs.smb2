@@ -56,9 +56,10 @@ t_mutex CConnectionFactory::m_open_mutex;
 t_connection_map CConnectionFactory::m_connections;
 t_opens_map CConnectionFactory::m_opens;
 
-static std::string to_smb_path(const char* path)
+static std::string to_tree_path(const VFSURL &url)
 {
-  std::string strPath(path);
+  std::string strPath(url.filename + strlen(url.sharename) + 1);
+
   std::replace(strPath.begin(), strPath.end(), '/', '\\');
 
   if (strPath.back() == '\\')
@@ -119,49 +120,23 @@ CConnection* CConnectionFactory::Acquire(const VFSURL &url)
   auto it = m_connections.find(sharename);
   if (it != m_connections.end())
   {
-    auto connections = it->second;
-    auto itc = std::find_if(connections.begin(), connections.end(), [](const CConnection* con) {
-      return true; // !con->bLocked;
-    });
-
-    if (itc != connections.end())
+    conn = it->second;
+    if (conn->reconnect && conn->refs > 1)
     {
-      conn = *itc;
-      if (conn->reconnect)
-      {
-        m_open_mutex.lock();
-        opens_locked = true;
+      m_open_mutex.lock();
+      opens_locked = true;
+    }
+    /*if ((!conn->refs && conn->lastAccess < P8PLATFORM::GetTimeMs() - CONTEXT_TIMEOUT) || !conn->smb_context)
+    {
+      delete conn;
+      connections.erase(itc);
+    }*/
+    else
+    {
+      conn->lastAccess = P8PLATFORM::GetTimeMs();
+      conn->refs++;
 
-        auto it = m_opens.begin();
-        while (it != m_opens.end());
-        {
-          if (it->second == conn)
-          {
-            free(it->first->handle); // dangerous
-
-            it->second->refs--;
-            it = m_opens.erase(it);
-            renews.push_back(it->first);
-          }
-          else
-            it++;
-        }
-
-        delete conn;
-        connections.erase(itc);
-      }
-      /*if ((!conn->refs && conn->lastAccess < P8PLATFORM::GetTimeMs() - CONTEXT_TIMEOUT) || !conn->smb_context)
-      {
-        delete conn;
-        connections.erase(itc);
-      }*/
-      else
-      {
-        conn->lastAccess = P8PLATFORM::GetTimeMs();
-        conn->refs++;
-
-        return conn;
-      }
+      return conn;
     }
   }
 
@@ -181,29 +156,23 @@ CConnection* CConnectionFactory::Acquire(const VFSURL &url)
 
   if (!smburl->domain)
     smburl->domain = strdup(smburl->server);
-
-  if (!smburl->user && !smburl->password)
-  {
+  if (!smburl->user)
     smburl->user = strdup("Guest");
-    smburl->password = strdup("");
-  }
 
   smb2_set_workstation(smb_context, smburl->server);
-  if (smburl->user)
-    smb2_set_user(smb_context, smburl->user);
-  if (smburl->password)
-    smb2_set_password(smb_context, smburl->password);
-  if (smburl->domain)
-    smb2_set_domain(smb_context, smburl->domain);
+  smb2_set_user(smb_context, smburl->user);
+  smb2_set_password(smb_context, url.password);
+  smb2_set_domain(smb_context, smburl->domain);
 
   smb2_set_security_mode(smb_context, SMB2_NEGOTIATE_SIGNING_ENABLED);
 
-  auto ret = smb2_connect_share(smb_context, smburl->server, smburl->share, smburl->user);
+  auto ret = smb2_connect_share(smb_context, smburl->server, smburl->share, nullptr);
+  smb2_destroy_url(smburl);
+
   if (ret < 0)
   {
-    kodi::Log(ADDON_LOG_ERROR, "SMB2: connect to share '%s' at server '%s' failed. %s", smburl->share, smburl->server, smb2_get_error(smb_context));
+    kodi::Log(ADDON_LOG_ERROR, "SMB2: connect to share '%s' at server '%s' failed. %s", url.sharename, url.hostname, smb2_get_error(smb_context));
     smb2_destroy_context(smb_context);
-    smb2_destroy_url(smburl);
 
     if (opens_locked)
       m_open_mutex.unlock();
@@ -211,29 +180,50 @@ CConnection* CConnectionFactory::Acquire(const VFSURL &url)
     return nullptr;
   }
 
-  kodi::Log(ADDON_LOG_DEBUG, "SMB2: connected to server '%s' and share '%s'", url.hostname, smburl->share);
-  smb2_destroy_url(smburl);
+  kodi::Log(ADDON_LOG_DEBUG, "SMB2: connected to server '%s' and share '%s'", url.hostname, url.sharename);
 
-  conn = new CConnection();
-  conn->sharename = sharename;
-  conn->smb_context = smb_context;
-  conn->lastAccess = P8PLATFORM::GetTimeMs();
+  // destroy old one if exists
+  delete conn;
 
-  if (!renews.empty())
+  CConnection* new_conn = new CConnection();
+  new_conn->sharename = sharename;
+  new_conn->smb_context = smb_context;
+  new_conn->lastAccess = P8PLATFORM::GetTimeMs();
+
+  // update connection for opened files
+  auto ito = m_opens.begin();
+  while (ito != m_opens.end());
   {
-    for (auto open : renews)
+    if (ito->second == conn)
     {
-      open->handle = smb2_open(smb_context, open->path.c_str(), open->mode);
-      smb2_lseek(smb_context, open->handle, open->offset, SEEK_SET, nullptr);
-      m_opens[open] = conn;
+      struct file_open* file = ito->first;
+      free(file->handle); // dangerous but requires to avoid memleak
+
+      file->handle = smb2_open(smb_context, file->path.c_str(), file->mode);
+      if (file->handle)
+      {
+        smb2_lseek(smb_context, file->handle, file->offset, SEEK_SET, nullptr);
+        ito->second = new_conn;
+        new_conn->refs++;
+        ito++;
+      }
+      else
+      {
+        // unable to reopen a file
+        delete file;
+        ito = m_opens.erase(ito);
+      }
     }
+    else
+      ito++;
   }
+
   if (opens_locked)
     m_open_mutex.unlock();
 
-  m_connections[sharename].push_back(conn);
+  m_connections[sharename] = new_conn;
 
-  return conn;
+  return new_conn;
 }
 
 struct file_open* CConnectionFactory::OpenFile(const VFSURL &url, int mode /* = O_RDONLY */)
@@ -294,11 +284,15 @@ bool CConnectionFactory::CloseFile(struct file_open* fh)
   auto it = m_opens.find(fh);
   if (it != m_opens.end())
   {
-    it->second->CloseFile(fh->handle);
+    CConnection* conn = it->second;
+    if (conn)
+    {
+      conn->CloseFile(fh->handle);
+      conn->refs--;
+    }
 
     delete fh;
     m_opens.erase(it);
-    it->second->refs--;
   }
 
   return true;
@@ -317,15 +311,8 @@ void CConnectionFactory::Remove(CConnection *conn)
   auto it = m_connections.find(conn->sharename);
   if (it != m_connections.end())
   {
-    auto connections = it->second;
-    auto itc = std::find_if(connections.begin(), connections.end(), [conn](const CConnection* con) {
-      return con == conn;
-    });
-    if (itc != connections.end())
-    {
-      delete (*itc);
-      connections.erase(itc);
-    }
+    delete it->second;
+    m_connections.erase(it);
   }
 }
 
@@ -349,12 +336,12 @@ void CConnectionFactory::DisconnectAll()
   auto itc = m_connections.begin();
   while (itc != m_connections.end())
   {
-    CConnection* conn = itc->second.front();
-    conn->Close();
-
-    delete conn;
-    itc->second.clear();
-
+    CConnection* conn = itc->second;
+    if (conn)
+    {
+      conn->Close();
+      delete conn;
+    }
     itc = m_connections.erase(itc);
   }
 }
@@ -367,18 +354,11 @@ CConnection::CConnection()
 {
 }
 
-bool CConnection::GetDirectory(const VFSURL & url, std::vector<kodi::vfs::CDirEntry>& items, kodi::addon::CInstanceVFS::CVFSCallbacks callbacks)
+bool CConnection::GetDirectory(const VFSURL &url, std::vector<kodi::vfs::CDirEntry>& items, kodi::addon::CInstanceVFS::CVFSCallbacks callbacks)
 {
-  struct smb2_url *smburl = smb2_parse_url(smb_context, url.url);
-  if (!smburl)
-  {
-    kodi::Log(ADDON_LOG_ERROR, "failed to parse url: %s", smb2_get_error(smb_context));
-    return false;
-  }
-
   struct smb2dir* smbdir = nullptr;
   struct sync_cb_data cb_data = { 0 };
-  std::string path = to_smb_path(smburl->path);
+  std::string path = to_tree_path(url);
 
   {
     t_locker lock(ctx_mutex);
@@ -406,6 +386,10 @@ bool CConnection::GetDirectory(const VFSURL & url, std::vector<kodi::vfs::CDirEn
   smb2dirent *smbdirent = nullptr;
   while ((smbdirent = smb2_readdir(smb_context, smbdir)) != nullptr)
   {
+    // don't add parent for tree root
+    if (path.empty() && smbdirent->name[0] == '.')
+      continue;
+
     int64_t iSize = 0;
     bool bIsDir = false;
     int64_t lTimeDate = 0;
@@ -453,14 +437,7 @@ bool CConnection::GetDirectory(const VFSURL & url, std::vector<kodi::vfs::CDirEn
 
 int CConnection::Stat(const VFSURL &url, struct __stat64* buffer)
 {
-  struct smb2_url* smburl = smb2_parse_url(smb_context, url.url);
-  if (!smburl)
-  {
-    kodi::Log(ADDON_LOG_ERROR, "SMB2: failed to parse url: %s", smb2_get_error(smb_context));
-    return -1;
-  }
-
-  std::string path = to_smb_path(smburl->path);
+  std::string path = to_tree_path(url);
 
   struct sync_cb_data cb_data = { 0 };
   struct smb2_stat_64 st;
@@ -502,14 +479,7 @@ int CConnection::Stat(const VFSURL &url, struct __stat64* buffer)
 bool CConnection::Delete(const VFSURL & url)
 {
   struct sync_cb_data cb_data = { 0 };
-  struct smb2_url* smburl = smb2_parse_url(smb_context, url.url);
-  if (!smburl)
-  {
-    kodi::Log(ADDON_LOG_ERROR, "SMB2: failed to parse url: %s", smb2_get_error(smb_context));
-    return false;
-  }
-
-  std::string path = to_smb_path(smburl->path);
+  std::string path = to_tree_path(url);
 
   {
     t_locker lock(ctx_mutex);
@@ -533,14 +503,8 @@ bool CConnection::Delete(const VFSURL & url)
 bool CConnection::RemoveDirectory(const VFSURL & url)
 {
   struct sync_cb_data cb_data = { 0 };
-  struct smb2_url* smburl = smb2_parse_url(smb_context, url.url);
-  if (!smburl)
-  {
-    kodi::Log(ADDON_LOG_ERROR, "SMB2: failed to parse url: %s", smb2_get_error(smb_context));
-    return false;
-  }
 
-  std::string path = to_smb_path(smburl->path);
+  std::string path = to_tree_path(url);
   if (path.empty())
   {
     kodi::Log(ADDON_LOG_ERROR, "SMB2: cannot delete tree root");
@@ -569,14 +533,8 @@ bool CConnection::RemoveDirectory(const VFSURL & url)
 bool CConnection::CreateDirectory(const VFSURL & url)
 {
   struct sync_cb_data cb_data = { 0 };
-  struct smb2_url* smburl = smb2_parse_url(smb_context, url.url);
-  if (!smburl)
-  {
-    kodi::Log(ADDON_LOG_ERROR, "SMB2: failed to parse url: %s", smb2_get_error(smb_context));
-    return false;
-  }
 
-  std::string path = to_smb_path(smburl->path);
+  std::string path = to_tree_path(url);
   if (path.empty())
   {
     kodi::Log(ADDON_LOG_ERROR, "SMB2: path must be in a tree");
@@ -638,14 +596,7 @@ int CConnection::Stat(smb2fh* file, struct __stat64* buffer)
 
 struct smb2fh* CConnection::OpenFile(const VFSURL &url, int mode /*= O_RDONLY*/)
 {
-  struct smb2_url* smburl = smb2_parse_url(smb_context, url.url);
-  if (!smburl)
-  {
-    kodi::Log(ADDON_LOG_ERROR, "SMB2: failed to parse url: %s", smb2_get_error(smb_context));
-    return nullptr;
-  }
-
-  std::string path = to_smb_path(smburl->path);
+  std::string path = to_tree_path(url);
   struct smb2fh *file = nullptr;
   struct sync_cb_data cb_data = { 0 };
   
@@ -667,11 +618,11 @@ struct smb2fh* CConnection::OpenFile(const VFSURL &url, int mode /*= O_RDONLY*/)
   
   if (cb_data.status) 
   {
-    kodi::Log(ADDON_LOG_INFO, "SMB2: unable to open file: '%s' error: '%s'", smburl->path, smb2_get_error(smb_context));
+    kodi::Log(ADDON_LOG_INFO, "SMB2: unable to open file: '%s' error: '%s'", url.filename, smb2_get_error(smb_context));
     return nullptr;
   }
 
-  kodi::Log(ADDON_LOG_DEBUG, "SMB2: opened %s", smburl->path);
+  kodi::Log(ADDON_LOG_DEBUG, "SMB2: opened %s", url.filename);
 
   return (struct smb2fh*)cb_data.data;
 }

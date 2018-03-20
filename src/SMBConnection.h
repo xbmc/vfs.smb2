@@ -40,10 +40,8 @@ class CConnection;
 
 // connection open by file handle
 typedef std::map<struct file_open*, CConnection*> t_opens_map;
-// vector of connections
-typedef std::vector<CConnection*> t_connection_vec;
 // connections for a share
-typedef std::map<std::string, t_connection_vec> t_connection_map;
+typedef std::map<std::string, CConnection*> t_connection_map;
 // mutex implementation
 typedef std::recursive_mutex t_mutex;
 // locker implementation

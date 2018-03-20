@@ -152,6 +152,9 @@ bool CSMBFile::Close(void* context)
 
 int CSMBFile::Stat(const VFSURL& url, struct __stat64* buffer)
 {
+  if (!strlen(url.sharename))
+    return -1;
+
   CConnection *conn = CConnectionFactory::Acquire(url);
   if (!conn)
     return -1;
@@ -164,11 +167,17 @@ int CSMBFile::Stat(const VFSURL& url, struct __stat64* buffer)
 
 bool CSMBFile::Exists(const VFSURL& url)
 {
+  if (!strlen(url.sharename))
+    return false;
+
   return Stat(url, nullptr) == 0;
 }
 
 bool CSMBFile::Delete(const VFSURL & url)
 {
+  if (!strlen(url.sharename))
+    return false;
+
   CConnection *conn = CConnectionFactory::Acquire(url);
   if (!conn)
     return false;
@@ -191,6 +200,9 @@ void CSMBFile::DisconnectAll()
 
 bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks)
 {
+  if (!strlen(url.sharename))
+    return false;
+
   CConnection *conn = CConnectionFactory::Acquire(url);
   if (!conn)
     return false;
@@ -203,12 +215,18 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
 
 bool CSMBFile::DirectoryExists(const VFSURL & url)
 {
+  if (!strlen(url.sharename))
+    return false;
+
   struct __stat64 st;
   return Stat(url, &st) == 0 && st.st_ino == 1;
 }
 
 bool CSMBFile::RemoveDirectory(const VFSURL & url)
 {
+  if (!strlen(url.sharename))
+    return false;
+
   CConnection *conn = CConnectionFactory::Acquire(url);
   if (!conn)
     return false;
@@ -221,6 +239,9 @@ bool CSMBFile::RemoveDirectory(const VFSURL & url)
 
 bool CSMBFile::CreateDirectory(const VFSURL & url)
 {
+  if (!strlen(url.sharename))
+    return false;
+
   CConnection *conn = CConnectionFactory::Acquire(url);
   if (!conn)
     return false;

@@ -130,7 +130,7 @@ int CSMBFile::GetChunkSize(void * context)
   if (!conn)
     return -1;
 
-  return conn->GetChunkSize();
+  return conn->GetChunkSize(file);
 }
 
 int CSMBFile::IoControl(void* context, XFILE::EIoControl request, void* param)

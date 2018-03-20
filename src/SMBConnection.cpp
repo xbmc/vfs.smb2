@@ -33,6 +33,8 @@ extern "C"
 
 //6 mins (360s) cached context timeout
 #define CONTEXT_TIMEOUT 360000
+// max size of smb credit
+#define SMB2_MAX_CREDIT_SIZE 65536
 
 struct file_open
 {
@@ -639,7 +641,7 @@ ssize_t CConnection::Read(struct file_open *file, void* lpBuf, size_t uiBufSize)
     return 0;
 
   // it's possible
-  int max_size = GetChunkSize();
+  int max_size = GetChunkSize(file);
   if (uiBufSize > max_size)
     uiBufSize = max_size;
 
@@ -673,7 +675,7 @@ ssize_t CConnection::Write(file_open* file, const void* lpBuf, size_t uiBufSize)
     return 0;
 
   // it's possible
-  int max_size = GetChunkSize();
+  int max_size = GetChunkSize(file);
   if (uiBufSize > max_size)
     uiBufSize = max_size;
 
@@ -804,9 +806,21 @@ void CConnection::CloseFile(struct smb2fh* file)
   }
 }
 
-int CConnection::GetChunkSize()
+int CConnection::GetChunkSize(struct file_open *file)
 {
-  return std::min(65536u * 4, smb2_get_max_read_size(smb_context));
+  uint32_t chunk_size = 0;
+  uint32_t smb_chunks = file->size / SMB2_MAX_CREDIT_SIZE;
+
+  if (smb_chunks <= 0x10) // 1MB
+    chunk_size = SMB2_MAX_CREDIT_SIZE;
+  else if (smb_chunks <= 0x100) // 16MB
+    chunk_size = SMB2_MAX_CREDIT_SIZE << 1;
+  else if (smb_chunks <= 0x1000) // 256MB
+    chunk_size = SMB2_MAX_CREDIT_SIZE << 2;
+  else
+    chunk_size = SMB2_MAX_CREDIT_SIZE << 4; // 1Mb for large files
+
+  return std::min(chunk_size, smb2_get_max_read_size(smb_context));
 }
 
 bool CConnection::Echo()

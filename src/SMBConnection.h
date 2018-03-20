@@ -86,9 +86,9 @@ public:
   int Truncate(struct file_open *file, int64_t size);
   int64_t GetLength(struct file_open *file);
   int64_t GetPosition(struct file_open *file);
+  int GetChunkSize(struct file_open *file);
 
   // connection operation
-  int GetChunkSize();
   void Close();
   bool Echo();
 

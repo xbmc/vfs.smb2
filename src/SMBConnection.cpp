@@ -144,32 +144,15 @@ CConnection* CConnectionFactory::Acquire(const VFSURL &url)
 
   // open new connection
   struct smb2_context *smb_context = smb2_init_context();
-  struct smb2_url *smburl = smb2_parse_url(smb_context, url.url);
-  if (!smburl || !smburl->server)
-  {
-    kodi::Log(ADDON_LOG_ERROR, "failed to parse url: %s", smb2_get_error(smb_context));
-    smb2_destroy_context(smb_context);
 
-    if (opens_locked)
-      m_open_mutex.unlock();
-
-    return nullptr;
-  }
-
-  if (!smburl->domain)
-    smburl->domain = strdup(smburl->server);
-  if (!smburl->user)
-    smburl->user = strdup("Guest");
-
-  smb2_set_workstation(smb_context, smburl->server);
-  smb2_set_user(smb_context, smburl->user);
+  smb2_set_workstation(smb_context, url.hostname);
+  smb2_set_user(smb_context, strlen(url.username) == 0 ? "Guest" : url.username);
   smb2_set_password(smb_context, url.password);
-  smb2_set_domain(smb_context, smburl->domain);
+  smb2_set_domain(smb_context, strlen(url.domain) == 0 ? "MicrosoftAccount" : url.domain);
 
   smb2_set_security_mode(smb_context, SMB2_NEGOTIATE_SIGNING_ENABLED);
 
-  auto ret = smb2_connect_share(smb_context, smburl->server, smburl->share, nullptr);
-  smb2_destroy_url(smburl);
+  auto ret = smb2_connect_share(smb_context, url.hostname, url.sharename, nullptr);
 
   if (ret < 0)
   {

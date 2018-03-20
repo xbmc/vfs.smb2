@@ -26,6 +26,8 @@ set(DEPLIBS ${SMB_LIBRARIES} ${p8-platform_LIBRARIES} ${kodiplatform_LIBRARIES})
 
 add_definitions(-D_LARGEFILE64_SOURCE
                 -D_FILE_OFFSET_BITS=64
-                -D__STDC_FORMAT_MACROS)
+                -D__STDC_FORMAT_MACROS
+                -D_CRT_NONSTDC_NO_DEPRECATE
+                -D_CRT_SECURE_NO_WARNINGS)
 
 build_addon(vfs.smb2 SMB DEPLIBS)

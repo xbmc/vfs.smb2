@@ -22,14 +22,15 @@
 
 #include <algorithm>
 #include <fcntl.h>
+#include <errno.h>
 #include <inttypes.h>
 
-#include "SMBConnection.h"
+#include "SMBSession.h"
 
 void* CSMBFile::Open(const VFSURL& url)
 {
-  struct file_open *file = CConnectionFactory::OpenFile(url);
-  return file;
+  void *context = CSMBSessionManager::OpenFile(url);
+  return context;
 }
 
 void* CSMBFile::OpenForWrite(const VFSURL& url, bool overWrite)
@@ -38,60 +39,56 @@ void* CSMBFile::OpenForWrite(const VFSURL& url, bool overWrite)
   if (!Exists(url))
     mode |= O_CREAT;
 
-  struct file_open *file = CConnectionFactory::OpenFile(url, mode);
-  return file;
+  void* context = CSMBSessionManager::OpenFile(url, mode);
+  return context;
 }
 
 ssize_t CSMBFile::Read(void* context, void* lpBuf, size_t uiBufSize)
 {
-  struct file_open* file = reinterpret_cast<struct file_open*>(context);
-  if (!file)
+  if (!context)
     return -1;
 
-  CConnection* conn = CConnectionFactory::GetForFile(file);
+  CSMBSessionPtr conn = CSMBSession::GetForContext(context);
   if (!conn)
     return -1;
 
-  return conn->Read(file, lpBuf, uiBufSize);
+  return conn->Read(context, lpBuf, uiBufSize);
 }
 
 ssize_t CSMBFile::Write(void* context, const void* buffer, size_t uiBufSize)
 {
-  struct file_open* file = reinterpret_cast<struct file_open*>(context);
-  if (!file)
+  if (!context)
     return -1;
 
-  CConnection* conn = CConnectionFactory::GetForFile(file);
+  CSMBSessionPtr conn = CSMBSession::GetForContext(context);
   if (!conn)
     return -1;
 
-  return conn->Write(file, buffer, uiBufSize);
+  return conn->Write(context, buffer, uiBufSize);
 }
 
 int64_t CSMBFile::Seek(void* context, int64_t iFilePosition, int iWhence)
 {
-  struct file_open* file = reinterpret_cast<struct file_open*>(context);
-  if (!file)
+  if (!context)
     return -1;
 
-  CConnection* conn = CConnectionFactory::GetForFile(file);
+  CSMBSessionPtr conn = CSMBSession::GetForContext(context);
   if (!conn)
     return -1;
 
-  return conn->Seek(file, iFilePosition, iWhence);
+  return conn->Seek(context, iFilePosition, iWhence);
 }
 
 int CSMBFile::Truncate(void* context, int64_t size)
 {
-  struct file_open* file = reinterpret_cast<struct file_open*>(context);
-  if (!file)
+  if (!context)
     return -1;
 
-  CConnection* conn = CConnectionFactory::GetForFile(file);
+  CSMBSessionPtr conn = CSMBSession::GetForContext(context);
   if (!conn)
     return -1;
 
-  return conn->Truncate(file, size);
+  return conn->Truncate(context, size);
 }
 
 int64_t CSMBFile::GetLength(void* context)
@@ -100,7 +97,7 @@ int64_t CSMBFile::GetLength(void* context)
   if (!file)
     return -1;
 
-  CConnection* conn = CConnectionFactory::GetForFile(file);
+  CSMBSessionPtr conn = CSMBSession::GetForContext(file);
   if (!conn)
     return -1;
 
@@ -109,28 +106,26 @@ int64_t CSMBFile::GetLength(void* context)
 
 int64_t CSMBFile::GetPosition(void* context)
 {
-  struct file_open* file = reinterpret_cast<struct file_open*>(context);
-  if (!file)
+  if (!context)
     return -1;
 
-  CConnection* conn = CConnectionFactory::GetForFile(file);
+  CSMBSessionPtr conn = CSMBSession::GetForContext(context);
   if (!conn)
     return -1;
 
-  return conn->GetPosition(file);
+  return conn->GetPosition(context);
 }
 
-int CSMBFile::GetChunkSize(void * context)
+int CSMBFile::GetChunkSize(void* context)
 {
-  struct file_open* file = reinterpret_cast<struct file_open*>(context);
-  if (!file)
+  if (!context)
     return -1;
 
-  CConnection* conn = CConnectionFactory::GetForFile(file);
+  CSMBSessionPtr conn = CSMBSession::GetForContext(context);
   if (!conn)
     return -1;
 
-  return conn->GetChunkSize(file);
+  return conn->GetChunkSize(context);
 }
 
 int CSMBFile::IoControl(void* context, XFILE::EIoControl request, void* param)
@@ -141,13 +136,16 @@ int CSMBFile::IoControl(void* context, XFILE::EIoControl request, void* param)
   return -1;
 }
 
-bool CSMBFile::Close(void* context)
+bool CSMBFile::Close(void *context)
 {
-  struct file_open* file = reinterpret_cast<struct file_open*>(context);
-  if (!file)
+  if (!context)
     return false;
 
-  return CConnectionFactory::CloseFile(file);
+  CSMBSessionPtr conn = CSMBSession::GetForContext(context);
+  if (!conn)
+    return false;
+
+  return conn->CloseFile(context);
 }
 
 int CSMBFile::Stat(const VFSURL& url, struct __stat64* buffer)
@@ -155,13 +153,12 @@ int CSMBFile::Stat(const VFSURL& url, struct __stat64* buffer)
   if (!strlen(url.sharename))
     return -1;
 
-  CConnection *conn = CConnectionFactory::Acquire(url);
+  CSMBSessionPtr conn = CSMBSessionManager::Open(url);
   if (!conn)
     return -1;
 
   auto res = conn->Stat(url, buffer);
 
-  CConnectionFactory::Release(conn);
   return res;
 }
 
@@ -173,29 +170,28 @@ bool CSMBFile::Exists(const VFSURL& url)
   return Stat(url, nullptr) == 0;
 }
 
-bool CSMBFile::Delete(const VFSURL & url)
+bool CSMBFile::Delete(const VFSURL& url)
 {
   if (!strlen(url.sharename))
     return false;
 
-  CConnection *conn = CConnectionFactory::Acquire(url);
+  CSMBSessionPtr conn = CSMBSessionManager::Open(url);
   if (!conn)
     return false;
 
   auto res = conn->Delete(url);
 
-  CConnectionFactory::Release(conn);
   return res;
 }
 
 void CSMBFile::ClearOutIdle()
 {
-  CConnectionFactory::CheckIfIdle();
+  CSMBSessionManager::CheckIfIdle();
 }
 
 void CSMBFile::DisconnectAll()
 {
-  CConnectionFactory::DisconnectAll();
+  CSMBSessionManager::DisconnectAll();
 }
 
 bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks)
@@ -203,17 +199,24 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
   if (!strlen(url.sharename))
     return false;
 
-  CConnection *conn = CConnectionFactory::Acquire(url);
+  CSMBSessionPtr conn = CSMBSessionManager::Open(url);
   if (!conn)
+  {
+    int err = CSMBSessionManager::GetLastError();
+    if ( err == -EACCES       // SMB2_STATUS_ACCESS_DENIED
+      || err == -ECONNREFUSED // SMB2_STATUS_LOGON_FAILURE
+      )
+    {
+      callbacks.RequireAuthentication(url.url);
+    }
     return false;
+  }
 
-  auto res = conn->GetDirectory(url, items, callbacks);
-
-  CConnectionFactory::Release(conn);
+  auto res = conn->GetDirectory(url, items);
   return res;
 }
 
-bool CSMBFile::DirectoryExists(const VFSURL & url)
+bool CSMBFile::DirectoryExists(const VFSURL& url)
 {
   if (!strlen(url.sharename))
     return false;
@@ -222,32 +225,30 @@ bool CSMBFile::DirectoryExists(const VFSURL & url)
   return Stat(url, &st) == 0 && st.st_ino == 1;
 }
 
-bool CSMBFile::RemoveDirectory(const VFSURL & url)
+bool CSMBFile::RemoveDirectory(const VFSURL& url)
 {
   if (!strlen(url.sharename))
     return false;
 
-  CConnection *conn = CConnectionFactory::Acquire(url);
+  CSMBSessionPtr conn = CSMBSessionManager::Open(url);
   if (!conn)
     return false;
 
   auto res = conn->RemoveDirectory(url);
 
-  CConnectionFactory::Release(conn);
   return res;
 }
 
-bool CSMBFile::CreateDirectory(const VFSURL & url)
+bool CSMBFile::CreateDirectory(const VFSURL& url)
 {
   if (!strlen(url.sharename))
     return false;
 
-  CConnection *conn = CConnectionFactory::Acquire(url);
+  CSMBSessionPtr conn = CSMBSessionManager::Open(url);
   if (!conn)
     return false;
 
   auto res = conn->CreateDirectory(url);
 
-  CConnectionFactory::Release(conn);
   return res;
 }

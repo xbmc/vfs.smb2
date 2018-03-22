@@ -16,10 +16,10 @@ include_directories(${KODI_INCLUDE_DIR}/.. # Hack way with "/..", need bigger Ko
                     ${p8-platform_INCLUDE_DIRS}
                     ${SMB_INCLUDE_DIRS})
 
-set(SMB_HEADERS src/SMBConnection.h
+set(SMB_HEADERS src/SMBSession.h
                 src/SMBFile.h)
 
-set(SMB_SOURCES src/SMBConnection.cpp
+set(SMB_SOURCES src/SMBSession.cpp
                 src/SMBFile.cpp)
 
 set(DEPLIBS ${SMB_LIBRARIES} ${p8-platform_LIBRARIES} ${kodiplatform_LIBRARIES})

@@ -184,6 +184,22 @@ bool CSMBFile::Delete(const VFSURL& url)
   return res;
 }
 
+bool CSMBFile::Rename(const VFSURL& url, const VFSURL& url2)
+{
+  if (!strlen(url.sharename) || !strlen(url2.sharename))
+    return false;
+  // rename is possible only inside a tree
+  if (stricmp(url.sharename, url2.sharename))
+    return false;
+
+  CSMBSessionPtr conn = CSMBSessionManager::Open(url);
+  if (!conn)
+    return false;
+
+  auto res = conn->Rename(url, url2);
+  return res;
+}
+
 void CSMBFile::ClearOutIdle()
 {
   CSMBSessionManager::CheckIfIdle();

@@ -479,6 +479,30 @@ struct file_open* CSMBSession::OpenFile(const VFSURL& url, int mode /*= O_RDONLY
   return file;
 }
 
+bool CSMBSession::Rename(const VFSURL & url, const VFSURL & url2)
+{
+  struct sync_cb_data cb_data = { 0 };
+  std::string oldpath = to_tree_path(url);
+  std::string newpath = to_tree_path(url2);
+
+  if (!IsValid())
+    return nullptr;
+
+  lastAccess = P8PLATFORM::GetTimeMs();
+  int ret = ProcessAsync("rename", cb_data, [&oldpath, &newpath](smb_ctx ctx, smb_cb cb, smb_data data) {
+    return smb2_rename_async(ctx, oldpath.c_str(), newpath.c_str(), cb, &data);
+  });
+
+  if (cb_data.status)
+  {
+    lastError = ret;
+    kodi::Log(ADDON_LOG_INFO, "SMB2: unable to rename file: '%s' error: '%s'", oldpath.c_str(), smb2_get_error(smb_context));
+    return nullptr;
+  }
+
+  return cb_data.status == 0;
+}
+
 bool CSMBSession::CloseFile(void* context)
 {
   struct file_open* file = static_cast<struct file_open*>(context);

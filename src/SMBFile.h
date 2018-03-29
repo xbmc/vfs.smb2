@@ -22,8 +22,6 @@
 #include <kodi/Filesystem.h>
 #include <kodi/General.h>
 
-class CConnection;
-
 class CSMBFile : public kodi::addon::CInstanceVFS
 {
 public:
@@ -34,6 +32,7 @@ public:
   int Stat(const VFSURL& url, struct __stat64* buffer) override;
   bool Exists(const VFSURL& url) override;
   bool Delete(const VFSURL& url) override;
+  bool Rename(const VFSURL& url, const VFSURL& url2) override;
 
   ssize_t Read(void* context, void* lpBuf, size_t uiBufSize) override;
   ssize_t Write(void* context, const void* buffer, size_t uiBufSize) override;

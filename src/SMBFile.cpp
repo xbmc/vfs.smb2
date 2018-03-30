@@ -168,7 +168,7 @@ bool CSMBFile::Exists(const VFSURL& url)
     return false;
 
   struct __stat64 st;
-  return Stat(url, &st) == 0 && !S_ISDIR(st.st_ino);
+  return Stat(url, &st) == 0 && !S_ISDIR(st.st_mode);
 }
 
 bool CSMBFile::Delete(const VFSURL& url)
@@ -239,7 +239,7 @@ bool CSMBFile::DirectoryExists(const VFSURL& url)
     return false;
 
   struct __stat64 st;
-  return Stat(url, &st) == 0 && S_ISDIR(st.st_ino);
+  return Stat(url, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
 bool CSMBFile::RemoveDirectory(const VFSURL& url)

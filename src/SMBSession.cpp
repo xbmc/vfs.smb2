@@ -113,6 +113,18 @@ static int wait_for_reply(struct smb2_context* smb2, sync_cb_data &cb_data)
   return 0;
 }
 
+std::string get_host_name()
+{
+  std::string result;
+  char* buf = new char[256];
+  if (!gethostname(buf, 256))
+  {
+    result = buf;
+  }
+  delete[] buf;
+  return result;
+}
+
 CSMBSessionPtr CSMBSessionManager::Open(const VFSURL &url)
 {
   std::string hostname = url.hostname;
@@ -203,7 +215,9 @@ bool CSMBSession::Connect(std::string& hostname, std::string& domain, std::strin
 {
   smb_context = smb2_init_context();
 
-  smb2_set_workstation(smb_context, hostname.c_str());
+  std::string localhost = get_host_name();
+  if (!localhost.empty())
+    smb2_set_workstation(smb_context, localhost.c_str());
   smb2_set_domain(smb_context, domain.c_str());
   smb2_set_user(smb_context, username.c_str());
   smb2_set_password(smb_context, password.c_str());

@@ -322,15 +322,11 @@ int CSMBSession::Stat(const VFSURL& url, struct __stat64* buffer)
     return smb2_stat_async(ctx, path.c_str(), &st, cb, &data);
   });
 
-  //if buffer == nullptr we where called from Exists - in that case don't spam the log with errors
-  if (cb_data.status != 0 && buffer != nullptr)
-  {
-    kodi::Log(ADDON_LOG_ERROR, "SMB2: failed to stat(%s) %s", url.filename, smb2_get_error(smb_context));
-  }
-  else if (buffer)
+  if (cb_data.status == 0 && buffer)
   {
     memset(buffer, 0, sizeof(struct __stat64));
     buffer->st_ino = static_cast<_ino_t>(st.smb2_ino);
+    buffer->st_mode = static_cast<uint16_t>(st.smb2_ino);
     buffer->st_nlink = st.smb2_nlink;
     buffer->st_size = st.smb2_size;
     buffer->st_atime = st.smb2_atime;
@@ -421,6 +417,7 @@ int CSMBSession::Stat(smb2fh* file, struct __stat64* buffer)
   {
     memset(buffer, 0, sizeof(struct __stat64));
     buffer->st_ino = static_cast<_ino_t>(st.smb2_ino);
+    buffer->st_mode = static_cast<uint16_t>(st.smb2_ino);
     buffer->st_nlink = st.smb2_nlink;
     buffer->st_size = st.smb2_size;
     buffer->st_atime = st.smb2_atime;

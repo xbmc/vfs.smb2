@@ -59,8 +59,10 @@ int CSMBSessionManager::m_lastError = 0;
 
 static std::string to_tree_path(const VFSURL &url)
 {
-  std::string strPath(url.filename + strlen(url.sharename) + 1);
+  if (strlen(url.filename) <= strlen(url.sharename) + 1)
+    return "";
 
+  std::string strPath(url.filename + strlen(url.sharename) + 1);
   std::replace(strPath.begin(), strPath.end(), '/', '\\');
 
   if (strPath.back() == '\\')

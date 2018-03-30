@@ -59,8 +59,10 @@ int CSMBSessionManager::m_lastError = 0;
 
 static std::string to_tree_path(const VFSURL &url)
 {
-  std::string strPath(url.filename + strlen(url.sharename) + 1);
+  if (strlen(url.filename) <= strlen(url.sharename) + 1)
+    return "";
 
+  std::string strPath(url.filename + strlen(url.sharename) + 1);
   std::replace(strPath.begin(), strPath.end(), '/', '\\');
 
   if (strPath.back() == '\\')
@@ -109,6 +111,29 @@ static int wait_for_reply(struct smb2_context* smb2, sync_cb_data &cb_data)
     }
   }
   return 0;
+}
+
+std::string get_host_name()
+{
+  std::string result;
+  char* buf = new char[256];
+  if (!gethostname(buf, 256))
+  {
+    result = buf;
+  }
+  delete[] buf;
+  return result;
+}
+
+void smb2_stat_to_system(struct smb2_stat_64& smb2_st, struct __stat64& sys_st)
+{
+  sys_st.st_ino = static_cast<_ino_t>(smb2_st.smb2_ino);
+  sys_st.st_mode = smb2_st.smb2_type == SMB2_TYPE_DIRECTORY ? S_IFDIR : 0;
+  sys_st.st_nlink = smb2_st.smb2_nlink;
+  sys_st.st_size = smb2_st.smb2_size;
+  sys_st.st_atime = smb2_st.smb2_atime;
+  sys_st.st_mtime = smb2_st.smb2_mtime;
+  sys_st.st_ctime = smb2_st.smb2_ctime;
 }
 
 CSMBSessionPtr CSMBSessionManager::Open(const VFSURL &url)
@@ -201,7 +226,9 @@ bool CSMBSession::Connect(std::string& hostname, std::string& domain, std::strin
 {
   smb_context = smb2_init_context();
 
-  smb2_set_workstation(smb_context, hostname.c_str());
+  std::string localhost = get_host_name();
+  if (!localhost.empty())
+    smb2_set_workstation(smb_context, localhost.c_str());
   smb2_set_domain(smb_context, domain.c_str());
   smb2_set_user(smb_context, username.c_str());
   smb2_set_password(smb_context, password.c_str());
@@ -325,13 +352,7 @@ int CSMBSession::Stat(const VFSURL& url, struct __stat64* buffer)
   if (cb_data.status == 0 && buffer)
   {
     memset(buffer, 0, sizeof(struct __stat64));
-    buffer->st_ino = static_cast<_ino_t>(st.smb2_ino);
-    buffer->st_mode = static_cast<uint16_t>(st.smb2_ino);
-    buffer->st_nlink = st.smb2_nlink;
-    buffer->st_size = st.smb2_size;
-    buffer->st_atime = st.smb2_atime;
-    buffer->st_mtime = st.smb2_mtime;
-    buffer->st_ctime = st.smb2_ctime;
+    smb2_stat_to_system(st, *buffer);
   }
 
   return cb_data.status;
@@ -416,13 +437,7 @@ int CSMBSession::Stat(smb2fh* file, struct __stat64* buffer)
   if (!cb_data.status && buffer)
   {
     memset(buffer, 0, sizeof(struct __stat64));
-    buffer->st_ino = static_cast<_ino_t>(st.smb2_ino);
-    buffer->st_mode = static_cast<uint16_t>(st.smb2_ino);
-    buffer->st_nlink = st.smb2_nlink;
-    buffer->st_size = st.smb2_size;
-    buffer->st_atime = st.smb2_atime;
-    buffer->st_mtime = st.smb2_mtime;
-    buffer->st_ctime = st.smb2_ctime;
+    smb2_stat_to_system(st, *buffer);
   }
   return cb_data.status;
 }

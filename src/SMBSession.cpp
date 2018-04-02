@@ -27,6 +27,7 @@ extern "C"
 
 #include "SMBSession.h"
 #include <kodi/Network.h>
+#include <p8-platform/util/StringUtils.h>
 #include <p8-platform/util/timeutils.h>
 #include <algorithm>
 
@@ -144,6 +145,7 @@ CSMBSessionPtr CSMBSessionManager::Open(const VFSURL &url)
   std::string username = !strlen(url.username) ? "Guest" : url.username;
   std::string password = url.password;
   std::string key = domain + ';' + username + '@' + hostname + '/' + sharename;
+  StringUtils::ToLower(key);
 
   locker_t lock(m_sess_mutex);
 

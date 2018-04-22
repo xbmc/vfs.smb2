@@ -614,7 +614,7 @@ int64_t CSMBSession::Seek(void* context, int64_t iFilePosition, int iWhence)
 
   // no need to lock lseek (it does nothing on connection)
   int ret = smb2_lseek(smb_context, file->handle, iFilePosition, iWhence, &file->offset);
-  if (ret < 0)
+  if (ret == -EINVAL)
   {
     kodi::Log(ADDON_LOG_ERROR, "SMB2: seek failed. error( seekpos: %" PRId64 ", whence: %i, %s)"
       , iFilePosition, iWhence, smb2_get_error(smb_context));

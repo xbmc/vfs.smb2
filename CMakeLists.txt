@@ -10,6 +10,7 @@ find_package(SMB REQUIRED)
 find_package(Kodi REQUIRED)
 find_package(p8-platform REQUIRED)
 find_package(kodiplatform REQUIRED)
+find_package(OpenSSL)
 
 include_directories(${KODI_INCLUDE_DIR}/.. # Hack way with "/..", need bigger Kodi cmake rework to match right include ways
                     ${kodiplatform_INCLUDE_DIRS}
@@ -22,7 +23,7 @@ set(SMB_HEADERS src/SMBSession.h
 set(SMB_SOURCES src/SMBSession.cpp
                 src/SMBFile.cpp)
 
-set(DEPLIBS ${SMB_LIBRARIES} ${p8-platform_LIBRARIES} ${kodiplatform_LIBRARIES})
+set(DEPLIBS ${SMB_LIBRARIES} ${p8-platform_LIBRARIES} ${kodiplatform_LIBRARIES} ${OPENSSL_LIBRARIES})
 
 add_definitions(-D_LARGEFILE64_SOURCE
                 -D_FILE_OFFSET_BITS=64

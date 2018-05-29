@@ -1,1 +1,1 @@
-smb https://github.com/afedchin/libsmb2 v1.0.0
+smb https://github.com/afedchin/libsmb2 v1.1.0

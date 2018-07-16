@@ -76,6 +76,14 @@ int64_t CSMBFile::Seek(void* context, int64_t iFilePosition, int iWhence)
   if (!conn)
     return -1;
 
+  // Not SEEK_END is not implemented, work around for now.
+  if (iWhence == SEEK_END)
+  {
+    struct file_open* file = reinterpret_cast<struct file_open*>(context);
+    int64_t pos = conn->GetLength(file);
+    return conn->Seek(context, pos + iFilePosition, SEEK_SET);
+  }
+
   return conn->Seek(context, iFilePosition, iWhence);
 }
 

@@ -23,6 +23,7 @@ extern "C"
 {
 #include <smb2/smb2.h>
 #include <smb2/libsmb2.h>
+#include <smb2/libsmb2-raw.h>
 }
 
 #include "SMBSession.h"
@@ -263,6 +264,49 @@ CSMBSession::~CSMBSession()
 bool CSMBSession::IsIdle() const
 {
   return (P8PLATFORM::GetTimeMs() - lastAccess) > CONTEXT_TIMEOUT;
+}
+
+bool CSMBSession::GetShares(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items)
+{
+  struct sync_cb_data cb_data = { 0 };
+
+  if (!IsValid())
+    return false;
+
+  lastAccess = P8PLATFORM::GetTimeMs();
+  int ret = ProcessAsync("share_enum", cb_data, [](smb_ctx ctx, smb_cb cb, smb_data data) {
+    return smb2_share_enum_async(ctx, cb, &data);
+  });
+
+  if (cb_data.status)
+  {
+    lastError = ret;
+    kodi::Log(ADDON_LOG_ERROR, "SMB2: share_enum failed: %s", smb2_get_error(smb_context));
+    return false;
+  }
+
+  lastError = 0;
+  struct srvsvc_netshareenumall_rep* reply = static_cast<struct srvsvc_netshareenumall_rep*>(cb_data.data);
+  for (uint32_t i = 0; i < reply->ctr->ctr1.count; ++i)
+  {
+    // allow visible disk trees only
+    if ((reply->ctr->ctr1.array[i].type & 3) != SHARE_TYPE_DISKTREE
+      || reply->ctr->ctr1.array[i].type & SHARE_TYPE_HIDDEN)
+      continue;
+
+    std::string item_path = std::string(url.url) + std::string(reply->ctr->ctr1.array[i].name);
+    if (item_path[item_path.size() - 1] != '/')
+      item_path += '/';
+
+    kodi::vfs::CDirEntry pItem;
+    pItem.SetLabel(reply->ctr->ctr1.array[i].name);
+    pItem.SetFolder(true);
+    pItem.SetPath(item_path);
+    items.push_back(pItem);
+  }
+  smb2_free_data(smb_context, reply);
+
+  return true;
 }
 
 bool CSMBSession::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items)

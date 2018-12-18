@@ -221,10 +221,36 @@ void CSMBFile::DisconnectAll()
 
 bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks)
 {
-  if (!strlen(url.sharename))
+  if (!strlen(url.hostname))
     return false;
 
-  CSMBSessionPtr conn = CSMBSessionManager::Open(url);
+  bool res = false;
+  CSMBSessionPtr conn = nullptr;
+
+  // for shares enumeration share name must be "IPC$"
+  if (!strlen(url.sharename))
+  {
+    VFSURL url2 = 
+    { 
+      url.url, 
+      url.domain, 
+      url.hostname, 
+      url.filename, 
+      url.port, 
+      url.options, 
+      url.username, 
+      url.password, 
+      url.redacted, 
+      "IPC$" 
+    };
+
+    conn = CSMBSessionManager::Open(url2);
+  }
+  else
+  {
+    conn = CSMBSessionManager::Open(url);
+  }
+
   if (!conn)
   {
     int err = CSMBSessionManager::GetLastError();
@@ -237,14 +263,42 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
     return false;
   }
 
-  auto res = conn->GetDirectory(url, items);
+  if (!strlen(url.sharename))
+  {
+    res = conn->GetShares(url, items);
+  }
+  else
+  {
+    res = conn->GetDirectory(url, items);
+  }
   return res;
 }
 
 bool CSMBFile::DirectoryExists(const VFSURL& url)
 {
-  if (!strlen(url.sharename))
+  if (!strlen(url.hostname))
     return false;
+
+  // checking if server exists by trying to connect to it's IPC$ share
+  if (!strlen(url.sharename))
+  {
+    VFSURL url2 =
+    {
+      url.url,
+      url.domain,
+      url.hostname,
+      url.filename,
+      url.port,
+      url.options,
+      url.username,
+      url.password,
+      url.redacted,
+      "IPC$"
+    };
+
+    CSMBSessionPtr conn = CSMBSessionManager::Open(url2);
+    return conn != nullptr;
+  }
 
   struct __stat64 st;
   return Stat(url, &st) == 0 && S_ISDIR(st.st_mode);

@@ -26,6 +26,40 @@
 #include <inttypes.h>
 
 #include "SMBSession.h"
+#include "netbios/netbios_ns.h"
+
+static void netbios_on_entry_added(void *p_opaque, netbios_ns_entry *entry)
+{
+  CSMBFile* smb = reinterpret_cast<CSMBFile*>(p_opaque);
+  P8PLATFORM::CLockObject lock(*smb);
+
+  smb->NetbiosOnEntryAdded(entry);
+}
+
+static void netbios_on_entry_removed(void *p_opaque, netbios_ns_entry *entry)
+{
+  CSMBFile* smb = reinterpret_cast<CSMBFile*>(p_opaque);
+  P8PLATFORM::CLockObject lock(*smb);
+
+  smb->NetbiosOnEntryRemoved(entry);
+}
+
+CSMBFile::CSMBFile(KODI_HANDLE instance) : CInstanceVFS(instance)
+{
+  netbios_ns_discover_callbacks callbacks;
+  m_ns = netbios_ns_new();
+
+  callbacks.p_opaque = (void*)this;
+  callbacks.pf_on_entry_added = netbios_on_entry_added;
+  callbacks.pf_on_entry_removed = netbios_on_entry_removed;
+
+  if (netbios_ns_discover_start(m_ns, 5, // broadcast every 5 seconds
+                                &callbacks))
+  {
+    netbios_ns_destroy(m_ns);
+    m_ns = nullptr;
+  }
+}
 
 void* CSMBFile::Open(const VFSURL& url)
 {
@@ -217,15 +251,99 @@ void CSMBFile::ClearOutIdle()
 void CSMBFile::DisconnectAll()
 {
   CSMBSessionManager::DisconnectAll();
+  if (m_ns)
+  {
+    netbios_ns_discover_stop(m_ns);
+    netbios_ns_destroy(m_ns);
+    m_ns = nullptr;
+  }
+}
+
+void CSMBFile::NetbiosOnEntryAdded(netbios_ns_entry * entry)
+{
+  uint32_t ip = netbios_ns_entry_ip(entry);
+  struct in_addr addr;
+  addr.s_addr = ip;
+
+  auto it = std::find_if(m_discovered.begin(), m_discovered.end(), [ip](const netbios_host& host) {
+    return ip == host.ip;
+  });
+
+  if (it == m_discovered.end())
+  {
+    netbios_host host;
+    host.ip = ip;
+    host.type = netbios_ns_entry_type(entry);
+    host.domain = std::string(netbios_ns_entry_group(entry));
+    host.name = std::string(netbios_ns_entry_name(entry));
+
+    m_discovered.push_back(host);
+
+    kodi::Log(ADDON_LOG_DEBUG, "NetbiosOnEntryAdded: Ip:%s name: %s/%s",
+              inet_ntoa(addr), host.domain.c_str(), host.name.c_str());
+  }
+  else
+  {
+    // need update?
+    it->type = netbios_ns_entry_type(entry);
+    it->domain = std::string(netbios_ns_entry_group(entry));
+    it->name = std::string(netbios_ns_entry_name(entry));
+  }
+}
+
+void CSMBFile::NetbiosOnEntryRemoved(netbios_ns_entry * entry)
+{
+  uint32_t ip = netbios_ns_entry_ip(entry);
+
+  auto it = std::find_if(m_discovered.begin(), m_discovered.end(), [ip](const netbios_host& host) {
+    return ip == host.ip;
+  });
+
+  if (it != m_discovered.end())
+  {
+    struct in_addr addr;
+    addr.s_addr = it->ip;
+
+    kodi::Log(ADDON_LOG_DEBUG, "NetbiosOnEntryRemoved: Ip:%s name: %s/%s",
+              inet_ntoa(addr), it->domain.c_str(), it->name.c_str());
+
+    m_discovered.erase(it);
+  }
 }
 
 bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks)
 {
-  if (!strlen(url.hostname))
-    return false;
-
   bool res = false;
   CSMBSessionPtr conn = nullptr;
+
+  // browse entire network
+  if (!strlen(url.hostname))
+  {
+    P8PLATFORM::CLockObject lock(*this);
+    for (netbios_host& host : m_discovered)
+    {
+      std::string path(std::string(url.url) + std::string(host.name));
+      if (path[path.size() - 1] != '/')
+        path += '/';
+
+      kodi::vfs::CDirEntry pItem;
+      if (host.name[0] == '.')
+      {
+        pItem.AddProperty("file:hidden", "true");
+      }
+      else
+      {
+        pItem.ClearProperties();
+      }
+
+      pItem.SetLabel(host.name);
+      pItem.SetFolder(true);
+      pItem.SetPath(path);
+      items.push_back(pItem);
+    }
+
+    return true;
+  }
 
   // for shares enumeration share name must be "IPC$"
   if (!strlen(url.sharename))
@@ -277,7 +395,7 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
 bool CSMBFile::DirectoryExists(const VFSURL& url)
 {
   if (!strlen(url.hostname))
-    return false;
+    return true;
 
   // checking if server exists by trying to connect to it's IPC$ share
   if (!strlen(url.sharename))

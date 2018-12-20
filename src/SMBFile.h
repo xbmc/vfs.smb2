@@ -21,11 +21,22 @@
 #include <kodi/addon-instance/VFS.h>
 #include <kodi/Filesystem.h>
 #include <kodi/General.h>
+#include <p8-platform/threads/mutex.h>
 
-class CSMBFile : public kodi::addon::CInstanceVFS
+#ifdef RemoveDirectory
+#undef RemoveDirectory
+#endif // RemoveDirectory
+#ifdef CreateDirectory
+#undef CreateDirectory
+#endif // RemoveDirectory
+
+struct netbios_ns;
+struct netbios_ns_entry;
+
+class CSMBFile : public kodi::addon::CInstanceVFS, public P8PLATFORM::CMutex
 {
 public:
-  CSMBFile(KODI_HANDLE instance) : CInstanceVFS(instance) { }
+  CSMBFile(KODI_HANDLE instance);
 
   void* Open(const VFSURL& url) override;
   void* OpenForWrite(const VFSURL& url, bool overWrite) override;
@@ -51,6 +62,21 @@ public:
 
   void ClearOutIdle();
   void DisconnectAll();
+
+  void NetbiosOnEntryAdded(netbios_ns_entry *entry);
+  void NetbiosOnEntryRemoved(netbios_ns_entry *entry);
+
+private:
+  struct netbios_host
+  {
+    char type;
+    uint32_t ip;
+    std::string name;
+    std::string domain;
+  };
+
+  netbios_ns* m_ns;
+  std::vector<netbios_host> m_discovered;
 };
 
 class ATTRIBUTE_HIDDEN CMyAddon : public kodi::addon::CAddonBase

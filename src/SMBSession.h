@@ -80,6 +80,7 @@ public:
 
   // static operations
   bool GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items);
+  bool GetShares(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items);
   int Stat(const VFSURL& url, struct __stat64* buffer);
   bool Delete(const VFSURL& url);
   bool Rename(const VFSURL& url, const VFSURL& url2);

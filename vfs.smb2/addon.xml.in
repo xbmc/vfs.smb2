@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon
   id="vfs.smb2"
-  version="1.0.0"
+  version="1.1.0"
   name="SMB support (libsmb2)"
   provider-name="afedchin">
   <requires>@ADDON_DEPENDS@</requires>
@@ -16,6 +16,8 @@
     supportPassword="true"
     supportPort="false"
     supportDialog="true"
+    supportBrowsing="true"
+    supportWrite="true"
     defaultPort="0"
     label="20171"
     library_@PLATFORM@="@LIBRARY_FILENAME@" />

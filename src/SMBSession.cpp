@@ -532,7 +532,7 @@ bool CSMBSession::Rename(const VFSURL & url, const VFSURL & url2)
   std::string newpath = to_tree_path(url2);
 
   if (!IsValid())
-    return nullptr;
+    return false;
 
   lastAccess = P8PLATFORM::GetTimeMs();
   int ret = ProcessAsync("rename", cb_data, [&oldpath, &newpath](smb_ctx ctx, smb_cb cb, smb_data data) {
@@ -543,7 +543,7 @@ bool CSMBSession::Rename(const VFSURL & url, const VFSURL & url2)
   {
     lastError = ret;
     kodi::Log(ADDON_LOG_INFO, "SMB2: unable to rename file: '%s' error: '%s'", oldpath.c_str(), smb2_get_error(smb_context));
-    return nullptr;
+    return false;
   }
 
   return cb_data.status == 0;

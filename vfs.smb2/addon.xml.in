@@ -22,8 +22,8 @@
     label="20171"
     library_@PLATFORM@="@LIBRARY_FILENAME@" />
   <extension point="xbmc.addon.metadata">
-    <summary lang="en">The add-on provides SMB2/3 protocol support</summary>
-    <description lang="en">The add-on provides SMB2/3 protocol support</description>
+    <summary lang="en_GB">The add-on provides SMB2/3 protocol support</summary>
+    <description lang="en_GB">The add-on provides SMB2/3 protocol support</description>
     <platform>@PLATFORM@</platform>
   </extension>
 </addon>

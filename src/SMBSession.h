@@ -16,6 +16,7 @@ extern "C"
 #include <smb2/libsmb2.h>
 }
 
+#include <chrono>
 #include <fcntl.h>
 #include <list>
 #include <map>
@@ -116,7 +117,7 @@ private:
   mutex_t m_open_mutex;             // mutex to m_files
   files_vec_t m_files;              // files opened with session
 
-  uint64_t lastAccess;              // the last access time
+  std::chrono::system_clock::time_point lastAccess; // the last access time
   int lastError;                    // the last error
   bool reconnect;                   // session requires reconnect
 };

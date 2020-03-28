@@ -26,6 +26,12 @@ set(SAMBA_SOURCES src/SMBSession.cpp
 
 set(DEPLIBS ${SMB_LIBRARIES} ${p8-platform_LIBRARIES})
 
+if(CMAKE_SYSTEM_NAME MATCHES Windows)
+  list(APPEND DEPLIBS ws2_32.lib)
+  add_definitions(-DWIN32_LEAN_AND_MEAN -DHAVE_SOCKADDR_IN6)
+endif()
+
+
 add_definitions(-D_LARGEFILE64_SOURCE
                 -D_FILE_OFFSET_BITS=64
                 -D__STDC_FORMAT_MACROS

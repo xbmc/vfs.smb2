@@ -19,6 +19,7 @@ extern "C"
 #include <p8-platform/util/StringUtils.h>
 #include <p8-platform/util/timeutils.h>
 #include <algorithm>
+#include <locale>
 
 //6 mins (360s) cached context timeout
 #define CONTEXT_TIMEOUT 360000
@@ -134,7 +135,7 @@ CSMBSessionPtr CSMBSessionManager::Open(const VFSURL &url)
   std::string username = !strlen(url.username) ? "Guest" : url.username;
   std::string password = url.password;
   std::string key = domain + ';' + username + '@' + hostname + '/' + sharename;
-  StringUtils::ToLower(key);
+  std::transform(key.begin(), key.end(), key.begin(), ::tolower);
 
   locker_t lock(m_sess_mutex);
 

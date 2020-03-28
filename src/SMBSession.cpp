@@ -16,8 +16,6 @@ extern "C"
 
 #include "SMBSession.h"
 #include <kodi/Network.h>
-#include <p8-platform/util/StringUtils.h>
-#include <p8-platform/util/timeutils.h>
 #include <algorithm>
 #include <locale>
 

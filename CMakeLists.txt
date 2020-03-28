@@ -5,10 +5,8 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
 
 find_package(SMB REQUIRED)
 find_package(Kodi REQUIRED)
-find_package(p8-platform REQUIRED)
 
 include_directories(${KODI_INCLUDE_DIR}/.. # Hack way with "/..", need bigger Kodi cmake rework to match right include ways
-                    ${p8-platform_INCLUDE_DIRS}
                     ${SMB_INCLUDE_DIRS})
 
 set(SAMBA_HEADERS src/SMBSession.h
@@ -24,7 +22,7 @@ set(SAMBA_SOURCES src/SMBSession.cpp
                   src/netbios/netbios_query.cpp
                   src/netbios/netbios_utils.cpp)
 
-set(DEPLIBS ${SMB_LIBRARIES} ${p8-platform_LIBRARIES})
+set(DEPLIBS ${SMB_LIBRARIES})
 
 if(CMAKE_SYSTEM_NAME MATCHES Windows)
   list(APPEND DEPLIBS ws2_32.lib)

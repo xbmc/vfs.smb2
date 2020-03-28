@@ -9,7 +9,7 @@
 #include <kodi/addon-instance/VFS.h>
 #include <kodi/Filesystem.h>
 #include <kodi/General.h>
-#include <p8-platform/threads/mutex.h>
+#include <mutex>
 
 #ifdef RemoveDirectory
 #undef RemoveDirectory
@@ -21,7 +21,7 @@
 struct netbios_ns;
 struct netbios_ns_entry;
 
-class CSMBFile : public kodi::addon::CInstanceVFS, public P8PLATFORM::CMutex
+class CSMBFile : public kodi::addon::CInstanceVFS, public std::recursive_mutex
 {
 public:
   CSMBFile(KODI_HANDLE instance);

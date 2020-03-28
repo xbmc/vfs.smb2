@@ -19,7 +19,7 @@
 static void netbios_on_entry_added(void *p_opaque, netbios_ns_entry *entry)
 {
   CSMBFile* smb = reinterpret_cast<CSMBFile*>(p_opaque);
-  P8PLATFORM::CLockObject lock(*smb);
+  std::lock_guard<std::recursive_mutex> lock(*smb);
 
   smb->NetbiosOnEntryAdded(entry);
 }
@@ -27,7 +27,7 @@ static void netbios_on_entry_added(void *p_opaque, netbios_ns_entry *entry)
 static void netbios_on_entry_removed(void *p_opaque, netbios_ns_entry *entry)
 {
   CSMBFile* smb = reinterpret_cast<CSMBFile*>(p_opaque);
-  P8PLATFORM::CLockObject lock(*smb);
+  std::lock_guard<std::recursive_mutex> lock(*smb);
 
   smb->NetbiosOnEntryRemoved(entry);
 }
@@ -307,7 +307,7 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
   // browse entire network
   if (!strlen(url.hostname))
   {
-    P8PLATFORM::CLockObject lock(*this);
+    std::lock_guard<std::recursive_mutex> lock(*this);
     for (netbios_host& host : m_discovered)
     {
       std::string path(std::string(url.url) + std::string(host.name));

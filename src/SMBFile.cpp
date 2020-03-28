@@ -158,9 +158,9 @@ int CSMBFile::GetChunkSize(void* context)
   return conn->GetChunkSize(context);
 }
 
-int CSMBFile::IoControl(void* context, XFILE::EIoControl request, void* param)
+int CSMBFile::IoControl(void* context, VFS_IOCTRL request, void* param)
 {
-  if(request == XFILE::IOCTRL_SEEK_POSSIBLE)
+  if(request == VFS_IOCTRL_SEEK_POSSIBLE)
     return 1;
 
   return -1;

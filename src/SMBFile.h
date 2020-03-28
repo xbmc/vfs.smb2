@@ -40,7 +40,7 @@ public:
   int64_t GetLength(void* context) override;
   int64_t GetPosition(void* context) override;
   int GetChunkSize(void* context) override;
-  int IoControl(void* context, XFILE::EIoControl request, void* param) override;
+  int IoControl(void* context, VFS_IOCTRL request, void* param) override;
   bool Close(void* context) override;
 
   bool GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks) override;

@@ -1,21 +1,9 @@
 /*
- *      Copyright (C) 2005-2018 Team Kodi
- *      http://kodi.tv
+ *  Copyright (C) 2005-2020 Team Kodi
+ *  https://kodi.tv
  *
- *  This Program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2, or (at your option)
- *  any later version.
- *
- *  This Program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with XBMC; see the file COPYING.  If not, see
- *  <http://www.gnu.org/licenses/>.
- *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ *  See LICENSE.md for more information.
  */
 
 #include "SMBFile.h"
@@ -31,7 +19,7 @@
 static void netbios_on_entry_added(void *p_opaque, netbios_ns_entry *entry)
 {
   CSMBFile* smb = reinterpret_cast<CSMBFile*>(p_opaque);
-  P8PLATFORM::CLockObject lock(*smb);
+  std::lock_guard<std::recursive_mutex> lock(*smb);
 
   smb->NetbiosOnEntryAdded(entry);
 }
@@ -39,7 +27,7 @@ static void netbios_on_entry_added(void *p_opaque, netbios_ns_entry *entry)
 static void netbios_on_entry_removed(void *p_opaque, netbios_ns_entry *entry)
 {
   CSMBFile* smb = reinterpret_cast<CSMBFile*>(p_opaque);
-  P8PLATFORM::CLockObject lock(*smb);
+  std::lock_guard<std::recursive_mutex> lock(*smb);
 
   smb->NetbiosOnEntryRemoved(entry);
 }
@@ -170,9 +158,9 @@ int CSMBFile::GetChunkSize(void* context)
   return conn->GetChunkSize(context);
 }
 
-int CSMBFile::IoControl(void* context, XFILE::EIoControl request, void* param)
+int CSMBFile::IoControl(void* context, VFS_IOCTRL request, void* param)
 {
-  if(request == XFILE::IOCTRL_SEEK_POSSIBLE)
+  if(request == VFS_IOCTRL_SEEK_POSSIBLE)
     return 1;
 
   return -1;
@@ -319,7 +307,7 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
   // browse entire network
   if (!strlen(url.hostname))
   {
-    P8PLATFORM::CLockObject lock(*this);
+    std::lock_guard<std::recursive_mutex> lock(*this);
     for (netbios_host& host : m_discovered)
     {
       std::string path(std::string(url.url) + std::string(host.name));

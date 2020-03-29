@@ -1,21 +1,9 @@
 /*
- *      Copyright (C) 2005-2018 Team Kodi
- *      http://kodi.tv
+ *  Copyright (C) 2005-2020 Team Kodi
+ *  https://kodi.tv
  *
- *  This Program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2, or (at your option)
- *  any later version.
- *
- *  This Program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with XBMC; see the file COPYING.  If not, see
- *  <http://www.gnu.org/licenses/>.
- *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ *  See LICENSE.md for more information.
  */
 
 #include <inttypes.h>
@@ -28,9 +16,8 @@ extern "C"
 
 #include "SMBSession.h"
 #include <kodi/Network.h>
-#include <p8-platform/util/StringUtils.h>
-#include <p8-platform/util/timeutils.h>
 #include <algorithm>
+#include <locale>
 
 //6 mins (360s) cached context timeout
 #define CONTEXT_TIMEOUT 360000
@@ -146,7 +133,7 @@ CSMBSessionPtr CSMBSessionManager::Open(const VFSURL &url)
   std::string username = !strlen(url.username) ? "Guest" : url.username;
   std::string password = url.password;
   std::string key = domain + ';' + username + '@' + hostname + '/' + sharename;
-  StringUtils::ToLower(key);
+  std::transform(key.begin(), key.end(), key.begin(), ::tolower);
 
   locker_t lock(m_sess_mutex);
 
@@ -215,7 +202,7 @@ CSMBSession::CSMBSession(std::string& hostname, std::string& domain, std::string
   if (!Connect(hostname, domain, username, password, sharename))
     Close();
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 }
 
 CSMBSessionPtr CSMBSession::GetForContext(void* context)
@@ -263,7 +250,7 @@ CSMBSession::~CSMBSession()
 
 bool CSMBSession::IsIdle() const
 {
-  return (P8PLATFORM::GetTimeMs() - lastAccess) > CONTEXT_TIMEOUT;
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - lastAccess).count() > CONTEXT_TIMEOUT;
 }
 
 bool CSMBSession::GetShares(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items)
@@ -273,7 +260,7 @@ bool CSMBSession::GetShares(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
   if (!IsValid())
     return false;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
   int ret = ProcessAsync("share_enum", cb_data, [](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_share_enum_async(ctx, cb, &data);
   });
@@ -317,7 +304,7 @@ bool CSMBSession::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEnt
   if (!IsValid())
     return false;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
   int ret = ProcessAsync("opendir", cb_data, [&path](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_opendir_async(ctx, path.c_str(), cb, &data);
   });
@@ -390,7 +377,7 @@ int CSMBSession::Stat(const VFSURL& url, struct __stat64* buffer)
   if (!IsValid())
     return -1;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
   lastError = ProcessAsync("stat", cb_data, [&path, &st](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_stat_async(ctx, path.c_str(), &st, cb, &data);
   });
@@ -412,7 +399,7 @@ bool CSMBSession::Delete(const VFSURL& url)
   if (!IsValid())
     return false;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   ProcessAsync("unlink", cb_data, [&path](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_unlink_async(ctx, path.c_str(), cb, &data);
@@ -435,7 +422,7 @@ bool CSMBSession::RemoveDirectory(const VFSURL& url)
   if (!IsValid())
     return false;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   ProcessAsync("rmdir", cb_data, [&path](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_rmdir_async(ctx, path.c_str(), cb, &data);
@@ -458,7 +445,7 @@ bool CSMBSession::CreateDirectory(const VFSURL& url)
   if (!IsValid())
     return false;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
   lastError = ProcessAsync("mkdir", cb_data, [&path](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_mkdir_async(ctx, path.c_str(), cb, &data);
   });
@@ -474,7 +461,7 @@ int CSMBSession::Stat(smb2fh* file, struct __stat64* buffer)
   if (!IsValid())
     return -1;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
   ProcessAsync("fstat", cb_data, [&file, &st](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_fstat_async(ctx, file, &st, cb, &data);
   });
@@ -497,7 +484,7 @@ struct file_open* CSMBSession::OpenFile(const VFSURL& url, int mode /*= O_RDONLY
   if (!IsValid())
     return nullptr;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
   int ret = ProcessAsync("open", cb_data, [&path, &mode](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_open_async(ctx, path.c_str(), mode, cb, &data);
   });
@@ -544,9 +531,9 @@ bool CSMBSession::Rename(const VFSURL & url, const VFSURL & url2)
   std::string newpath = to_tree_path(url2);
 
   if (!IsValid())
-    return nullptr;
+    return false;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
   int ret = ProcessAsync("rename", cb_data, [&oldpath, &newpath](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_rename_async(ctx, oldpath.c_str(), newpath.c_str(), cb, &data);
   });
@@ -555,7 +542,7 @@ bool CSMBSession::Rename(const VFSURL & url, const VFSURL & url2)
   {
     lastError = ret;
     kodi::Log(ADDON_LOG_INFO, "SMB2: unable to rename file: '%s' error: '%s'", oldpath.c_str(), smb2_get_error(smb_context));
-    return nullptr;
+    return false;
   }
 
   return cb_data.status == 0;
@@ -587,7 +574,7 @@ ssize_t CSMBSession::Read(void* context, void* lpBuf, size_t uiBufSize)
     return -1;
 
   struct sync_cb_data cb_data = { 0 };
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   // don't read more than file has
   if ((file->offset + uiBufSize) > file->size)
@@ -623,7 +610,7 @@ ssize_t CSMBSession::Write(void* context, const void* lpBuf, size_t uiBufSize)
     return -1;
 
   struct sync_cb_data cb_data = { 0 };
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   if (!uiBufSize)
     return 0;
@@ -654,7 +641,7 @@ int64_t CSMBSession::Seek(void* context, int64_t iFilePosition, int iWhence)
   if (!file->handle)
     return -1;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   // no need to lock lseek (it does nothing on connection)
   int ret = smb2_lseek(smb_context, file->handle, iFilePosition, iWhence, &file->offset);
@@ -676,7 +663,7 @@ int CSMBSession::Truncate(void* context, int64_t size)
 
   struct sync_cb_data cb_data = { 0 };
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   struct smb2fh* fh = file->handle;
   int ret = ProcessAsync("ftruncate", cb_data, [&fh, &size](smb_ctx ctx, smb_cb cb, smb_data data) {
@@ -699,7 +686,7 @@ int64_t CSMBSession::GetLength(void* context)
   struct sync_cb_data cb_data = { 0 };
   struct smb2_stat_64 tmp;
 
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   struct smb2fh* fh = file->handle;
   int ret = ProcessAsync("fstat", cb_data, [&fh, &tmp](smb_ctx ctx, smb_cb cb, smb_data data) {
@@ -760,7 +747,7 @@ void CSMBSession::CloseHandle(struct smb2fh* file)
   }
 
   struct sync_cb_data cb_data = { 0 };
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   lastError = ProcessAsync("close", cb_data, [&file](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_close_async(ctx, file, cb, &data);
@@ -792,7 +779,7 @@ bool CSMBSession::Echo()
     return false;
 
   struct sync_cb_data cb_data = { 0 };
-  lastAccess = P8PLATFORM::GetTimeMs();
+  lastAccess = std::chrono::system_clock::now();
 
   lastError = ProcessAsync("echo", cb_data, [](smb_ctx ctx, smb_cb cb, smb_data data) {
     return smb2_echo_async(ctx, cb, &data);

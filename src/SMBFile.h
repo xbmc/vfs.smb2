@@ -1,27 +1,15 @@
 /*
- *      Copyright (C) 2005-2018 Team Kodi
- *      http://kodi.tv
+ *  Copyright (C) 2005-2020 Team Kodi
+ *  https://kodi.tv
  *
- *  This Program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2, or (at your option)
- *  any later version.
- *
- *  This Program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with XBMC; see the file COPYING.  If not, see
- *  <http://www.gnu.org/licenses/>.
- *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ *  See LICENSE.md for more information.
  */
 
 #include <kodi/addon-instance/VFS.h>
 #include <kodi/Filesystem.h>
 #include <kodi/General.h>
-#include <p8-platform/threads/mutex.h>
+#include <mutex>
 
 #ifdef RemoveDirectory
 #undef RemoveDirectory
@@ -33,7 +21,7 @@
 struct netbios_ns;
 struct netbios_ns_entry;
 
-class CSMBFile : public kodi::addon::CInstanceVFS, public P8PLATFORM::CMutex
+class CSMBFile : public kodi::addon::CInstanceVFS, public std::recursive_mutex
 {
 public:
   CSMBFile(KODI_HANDLE instance);
@@ -52,7 +40,7 @@ public:
   int64_t GetLength(void* context) override;
   int64_t GetPosition(void* context) override;
   int GetChunkSize(void* context) override;
-  int IoControl(void* context, XFILE::EIoControl request, void* param) override;
+  int IoControl(void* context, VFS_IOCTRL request, void* param) override;
   bool Close(void* context) override;
 
   bool GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks) override;
@@ -82,8 +70,8 @@ private:
 class ATTRIBUTE_HIDDEN CMyAddon : public kodi::addon::CAddonBase
 {
 public:
-  CMyAddon() { }
-  virtual ADDON_STATUS CreateInstance(int instanceType, std::string instanceID, KODI_HANDLE instance, KODI_HANDLE& addonInstance) override
+  CMyAddon() = default;
+  ADDON_STATUS CreateInstance(int instanceType, std::string instanceID, KODI_HANDLE instance, KODI_HANDLE& addonInstance) override
   {
     addonInstance = new CSMBFile(instance);
     return ADDON_STATUS_OK;

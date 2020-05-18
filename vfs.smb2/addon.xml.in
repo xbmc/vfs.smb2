@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon
   id="vfs.smb2"
-  version="2.0.0"
+  version="2.1.0"
   name="SMB support (libsmb2)"
   provider-name="afedchin">
   <requires>@ADDON_DEPENDS@</requires>

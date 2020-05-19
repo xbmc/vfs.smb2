@@ -32,7 +32,7 @@ static void netbios_on_entry_removed(void *p_opaque, netbios_ns_entry *entry)
   smb->NetbiosOnEntryRemoved(entry);
 }
 
-CSMBFile::CSMBFile(KODI_HANDLE instance) : CInstanceVFS(instance)
+CSMBFile::CSMBFile(KODI_HANDLE instance, const std::string& version) : CInstanceVFS(instance, version)
 {
   netbios_ns_discover_callbacks callbacks;
   m_ns = netbios_ns_new();

@@ -11,12 +11,12 @@
 #include <kodi/General.h>
 #include <mutex>
 
-#ifdef RemoveDirectory
-#undef RemoveDirectory
-#endif // RemoveDirectory
-#ifdef CreateDirectory
-#undef CreateDirectory
-#endif // RemoveDirectory
+#ifndef S_ISDIR
+#define S_ISDIR(mode) ((((mode)) & 0170000) == (0040000))
+#endif
+#ifndef S_ISLNK
+#define S_ISLNK(mode) ((((mode)) & 0170000) == (0120000))
+#endif
 
 struct netbios_ns;
 struct netbios_ns_entry;
@@ -24,7 +24,7 @@ struct netbios_ns_entry;
 class CSMBFile : public kodi::addon::CInstanceVFS, public std::recursive_mutex
 {
 public:
-  CSMBFile(KODI_HANDLE instance);
+  CSMBFile(KODI_HANDLE instance, const std::string& version);
 
   void* Open(const VFSURL& url) override;
   void* OpenForWrite(const VFSURL& url, bool overWrite) override;
@@ -71,9 +71,9 @@ class ATTRIBUTE_HIDDEN CMyAddon : public kodi::addon::CAddonBase
 {
 public:
   CMyAddon() = default;
-  ADDON_STATUS CreateInstance(int instanceType, std::string instanceID, KODI_HANDLE instance, KODI_HANDLE& addonInstance) override
+  ADDON_STATUS CreateInstance(int instanceType, const std::string& instanceID, KODI_HANDLE instance, const std::string& version, KODI_HANDLE& addonInstance) override
   {
-    addonInstance = new CSMBFile(instance);
+    addonInstance = new CSMBFile(instance, version);
     return ADDON_STATUS_OK;
   }
 };

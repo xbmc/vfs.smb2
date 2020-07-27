@@ -49,23 +49,23 @@ CSMBFile::CSMBFile(KODI_HANDLE instance, const std::string& version) : CInstance
   }
 }
 
-void* CSMBFile::Open(const VFSURL& url)
+kodi::addon::VFSFileHandle CSMBFile::Open(const kodi::addon::VFSUrl& url)
 {
   void *context = CSMBSessionManager::OpenFile(url);
   return context;
 }
 
-void* CSMBFile::OpenForWrite(const VFSURL& url, bool overWrite)
+kodi::addon::VFSFileHandle CSMBFile::OpenForWrite(const kodi::addon::VFSUrl& url, bool overWrite)
 {
   int mode = O_RDWR | O_WRONLY;
   if (!Exists(url))
     mode |= O_CREAT;
 
-  void* context = CSMBSessionManager::OpenFile(url, mode);
+  kodi::addon::VFSFileHandle context = CSMBSessionManager::OpenFile(url, mode);
   return context;
 }
 
-ssize_t CSMBFile::Read(void* context, void* lpBuf, size_t uiBufSize)
+ssize_t CSMBFile::Read(kodi::addon::VFSFileHandle context, uint8_t* lpBuf, size_t uiBufSize)
 {
   if (!context)
     return -1;
@@ -77,7 +77,7 @@ ssize_t CSMBFile::Read(void* context, void* lpBuf, size_t uiBufSize)
   return conn->Read(context, lpBuf, uiBufSize);
 }
 
-ssize_t CSMBFile::Write(void* context, const void* buffer, size_t uiBufSize)
+ssize_t CSMBFile::Write(kodi::addon::VFSFileHandle context, const uint8_t* buffer, size_t uiBufSize)
 {
   if (!context)
     return -1;
@@ -89,7 +89,7 @@ ssize_t CSMBFile::Write(void* context, const void* buffer, size_t uiBufSize)
   return conn->Write(context, buffer, uiBufSize);
 }
 
-int64_t CSMBFile::Seek(void* context, int64_t iFilePosition, int iWhence)
+int64_t CSMBFile::Seek(kodi::addon::VFSFileHandle context, int64_t iFilePosition, int iWhence)
 {
   if (!context)
     return -1;
@@ -109,7 +109,7 @@ int64_t CSMBFile::Seek(void* context, int64_t iFilePosition, int iWhence)
   return conn->Seek(context, iFilePosition, iWhence);
 }
 
-int CSMBFile::Truncate(void* context, int64_t size)
+int CSMBFile::Truncate(kodi::addon::VFSFileHandle context, int64_t size)
 {
   if (!context)
     return -1;
@@ -121,7 +121,7 @@ int CSMBFile::Truncate(void* context, int64_t size)
   return conn->Truncate(context, size);
 }
 
-int64_t CSMBFile::GetLength(void* context)
+int64_t CSMBFile::GetLength(kodi::addon::VFSFileHandle context)
 {
   struct file_open* file = reinterpret_cast<struct file_open*>(context);
   if (!file)
@@ -134,7 +134,7 @@ int64_t CSMBFile::GetLength(void* context)
   return conn->GetLength(file);
 }
 
-int64_t CSMBFile::GetPosition(void* context)
+int64_t CSMBFile::GetPosition(kodi::addon::VFSFileHandle context)
 {
   if (!context)
     return -1;
@@ -146,7 +146,7 @@ int64_t CSMBFile::GetPosition(void* context)
   return conn->GetPosition(context);
 }
 
-int CSMBFile::GetChunkSize(void* context)
+int CSMBFile::GetChunkSize(kodi::addon::VFSFileHandle context)
 {
   if (!context)
     return -1;
@@ -158,12 +158,9 @@ int CSMBFile::GetChunkSize(void* context)
   return conn->GetChunkSize(context);
 }
 
-int CSMBFile::IoControl(void* context, VFS_IOCTRL request, void* param)
+bool CSMBFile::IoControlGetSeekPossible(kodi::addon::VFSFileHandle context)
 {
-  if(request == VFS_IOCTRL_SEEK_POSSIBLE)
-    return 1;
-
-  return -1;
+  return true;
 }
 
 bool CSMBFile::Close(void *context)
@@ -178,32 +175,41 @@ bool CSMBFile::Close(void *context)
   return conn->CloseFile(context);
 }
 
-int CSMBFile::Stat(const VFSURL& url, struct __stat64* buffer)
+int CSMBFile::Stat(const kodi::addon::VFSUrl& url, kodi::vfs::FileStatus& buffer)
 {
-  if (!strlen(url.sharename))
+  if (url.GetSharename().empty())
     return -1;
 
   CSMBSessionPtr conn = CSMBSessionManager::Open(url);
   if (!conn)
     return -1;
 
-  auto res = conn->Stat(url, buffer);
+  struct __stat64 st;
+  int res = conn->Stat(url, &st);
+
+  buffer.SetFileSerialNumber(static_cast<uint64_t>(st.st_ino));
+  buffer.SetIsDirectory(st.st_mode & S_IFDIR);
+  buffer.SetIsSymLink(st.st_nlink);
+  buffer.SetSize(st.st_size);
+  buffer.SetAccessTime(st.st_atime);
+  buffer.SetModificationTime(st.st_mtime);
+  buffer.SetStatusTime(st.st_ctime);
 
   return res;
 }
 
-bool CSMBFile::Exists(const VFSURL& url)
+bool CSMBFile::Exists(const kodi::addon::VFSUrl& url)
 {
-  if (!strlen(url.sharename))
+  if (url.GetSharename().empty())
     return false;
 
-  struct __stat64 st;
-  return Stat(url, &st) == 0 && !S_ISDIR(st.st_mode);
+  kodi::vfs::FileStatus st;
+  return Stat(url, st) == 0 && !st.GetIsDirectory();
 }
 
-bool CSMBFile::Delete(const VFSURL& url)
+bool CSMBFile::Delete(const kodi::addon::VFSUrl& url)
 {
-  if (!strlen(url.sharename))
+  if (url.GetSharename().empty())
     return false;
 
   CSMBSessionPtr conn = CSMBSessionManager::Open(url);
@@ -215,12 +221,12 @@ bool CSMBFile::Delete(const VFSURL& url)
   return res;
 }
 
-bool CSMBFile::Rename(const VFSURL& url, const VFSURL& url2)
+bool CSMBFile::Rename(const kodi::addon::VFSUrl& url, const kodi::addon::VFSUrl& url2)
 {
-  if (!strlen(url.sharename) || !strlen(url2.sharename))
+  if (url.GetSharename().empty() || url2.GetSharename().empty())
     return false;
   // rename is possible only inside a tree
-  if (stricmp(url.sharename, url2.sharename))
+  if (url.GetSharename() == url2.GetSharename())
     return false;
 
   CSMBSessionPtr conn = CSMBSessionManager::Open(url);
@@ -299,18 +305,18 @@ void CSMBFile::NetbiosOnEntryRemoved(netbios_ns_entry * entry)
   }
 }
 
-bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks)
+bool CSMBFile::GetDirectory(const kodi::addon::VFSUrl& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks)
 {
   bool res = false;
   CSMBSessionPtr conn = nullptr;
 
   // browse entire network
-  if (!strlen(url.hostname))
+  if (url.GetHostname().empty())
   {
     std::lock_guard<std::recursive_mutex> lock(*this);
     for (netbios_host& host : m_discovered)
     {
-      std::string path(std::string(url.url) + std::string(host.name));
+      std::string path(url.GetURL() + std::string(host.name));
       if (path[path.size() - 1] != '/')
         path += '/';
 
@@ -333,30 +339,7 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
     return true;
   }
 
-  // for shares enumeration share name must be "IPC$"
-  if (!strlen(url.sharename))
-  {
-    VFSURL url2 = 
-    { 
-      url.url, 
-      url.domain, 
-      url.hostname, 
-      url.filename, 
-      url.port, 
-      url.options, 
-      url.username, 
-      url.password, 
-      url.redacted, 
-      "IPC$" 
-    };
-
-    conn = CSMBSessionManager::Open(url2);
-  }
-  else
-  {
-    conn = CSMBSessionManager::Open(url);
-  }
-
+  conn = CSMBSessionManager::Open(url);
   if (!conn)
   {
     int err = CSMBSessionManager::GetLastError();
@@ -364,12 +347,12 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
       || err == -ECONNREFUSED // SMB2_STATUS_LOGON_FAILURE
       )
     {
-      callbacks.RequireAuthentication(url.url);
+      callbacks.RequireAuthentication(url.GetURL());
     }
     return false;
   }
 
-  if (!strlen(url.sharename))
+  if (url.GetSharename().empty())
   {
     res = conn->GetShares(url, items);
   }
@@ -380,39 +363,25 @@ bool CSMBFile::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
   return res;
 }
 
-bool CSMBFile::DirectoryExists(const VFSURL& url)
+bool CSMBFile::DirectoryExists(const kodi::addon::VFSUrl& url)
 {
-  if (!strlen(url.hostname))
+  if (url.GetHostname().empty())
     return true;
 
   // checking if server exists by trying to connect to it's IPC$ share
-  if (!strlen(url.sharename))
+  if (url.GetSharename().empty())
   {
-    VFSURL url2 =
-    {
-      url.url,
-      url.domain,
-      url.hostname,
-      url.filename,
-      url.port,
-      url.options,
-      url.username,
-      url.password,
-      url.redacted,
-      "IPC$"
-    };
-
-    CSMBSessionPtr conn = CSMBSessionManager::Open(url2);
+    CSMBSessionPtr conn = CSMBSessionManager::Open(url);
     return conn != nullptr;
   }
 
-  struct __stat64 st;
-  return Stat(url, &st) == 0 && S_ISDIR(st.st_mode);
+  kodi::vfs::FileStatus st;
+  return Stat(url, st) == 0 && st.GetIsDirectory();
 }
 
-bool CSMBFile::RemoveDirectory(const VFSURL& url)
+bool CSMBFile::RemoveDirectory(const kodi::addon::VFSUrl& url)
 {
-  if (!strlen(url.sharename))
+  if (url.GetSharename().empty())
     return false;
 
   CSMBSessionPtr conn = CSMBSessionManager::Open(url);
@@ -424,9 +393,9 @@ bool CSMBFile::RemoveDirectory(const VFSURL& url)
   return res;
 }
 
-bool CSMBFile::CreateDirectory(const VFSURL& url)
+bool CSMBFile::CreateDirectory(const kodi::addon::VFSUrl& url)
 {
-  if (!strlen(url.sharename))
+  if (url.GetSharename().empty())
     return false;
 
   CSMBSessionPtr conn = CSMBSessionManager::Open(url);

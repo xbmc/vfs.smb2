@@ -26,27 +26,27 @@ class CSMBFile : public kodi::addon::CInstanceVFS, public std::recursive_mutex
 public:
   CSMBFile(KODI_HANDLE instance, const std::string& version);
 
-  void* Open(const VFSURL& url) override;
-  void* OpenForWrite(const VFSURL& url, bool overWrite) override;
-  int Stat(const VFSURL& url, struct __stat64* buffer) override;
-  bool Exists(const VFSURL& url) override;
-  bool Delete(const VFSURL& url) override;
-  bool Rename(const VFSURL& url, const VFSURL& url2) override;
+  kodi::addon::VFSFileHandle Open(const kodi::addon::VFSUrl& url) override;
+  kodi::addon::VFSFileHandle OpenForWrite(const kodi::addon::VFSUrl& url, bool overWrite) override;
+  int Stat(const kodi::addon::VFSUrl& url, kodi::vfs::FileStatus& buffer) override;
+  bool Exists(const kodi::addon::VFSUrl& url) override;
+  bool Delete(const kodi::addon::VFSUrl& url) override;
+  bool Rename(const kodi::addon::VFSUrl& url, const kodi::addon::VFSUrl& url2) override;
 
-  ssize_t Read(void* context, void* lpBuf, size_t uiBufSize) override;
-  ssize_t Write(void* context, const void* buffer, size_t uiBufSize) override;
-  int64_t Seek(void* context, int64_t iFilePosition, int iWhence) override;
-  int Truncate(void* context, int64_t size) override;
-  int64_t GetLength(void* context) override;
-  int64_t GetPosition(void* context) override;
-  int GetChunkSize(void* context) override;
-  int IoControl(void* context, VFS_IOCTRL request, void* param) override;
-  bool Close(void* context) override;
+  ssize_t Read(kodi::addon::VFSFileHandle context, uint8_t* lpBuf, size_t uiBufSize) override;
+  ssize_t Write(kodi::addon::VFSFileHandle context, const uint8_t* buffer, size_t uiBufSize) override;
+  int64_t Seek(kodi::addon::VFSFileHandle context, int64_t iFilePosition, int iWhence) override;
+  int Truncate(kodi::addon::VFSFileHandle context, int64_t size) override;
+  int64_t GetLength(kodi::addon::VFSFileHandle context) override;
+  int64_t GetPosition(kodi::addon::VFSFileHandle context) override;
+  int GetChunkSize(kodi::addon::VFSFileHandle context) override;
+  bool IoControlGetSeekPossible(kodi::addon::VFSFileHandle context) override;
+  bool Close(kodi::addon::VFSFileHandle context) override;
 
-  bool GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks) override;
-  bool DirectoryExists(const VFSURL& url) override;
-  bool RemoveDirectory(const VFSURL& url) override;
-  bool CreateDirectory(const VFSURL& url) override;
+  bool GetDirectory(const kodi::addon::VFSUrl& url, std::vector<kodi::vfs::CDirEntry>& items, CVFSCallbacks callbacks) override;
+  bool DirectoryExists(const kodi::addon::VFSUrl& url) override;
+  bool RemoveDirectory(const kodi::addon::VFSUrl& url) override;
+  bool CreateDirectory(const kodi::addon::VFSUrl& url) override;
 
   void ClearOutIdle();
   void DisconnectAll();

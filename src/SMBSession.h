@@ -47,8 +47,8 @@ typedef std::vector<struct file_open*> files_vec_t;
 class CSMBSessionManager
 {
 public:
-  static CSMBSessionPtr Open(const VFSURL& url);
-  static void* OpenFile(const VFSURL& url, int mode = O_RDONLY);
+  static CSMBSessionPtr Open(const kodi::addon::VFSUrl& url);
+  static void* OpenFile(const kodi::addon::VFSUrl& url, int mode = O_RDONLY);
 
   static void DisconnectAll();
   static void CheckIfIdle();
@@ -68,13 +68,13 @@ public:
   static CSMBSessionPtr GetForContext(void* context);
 
   // static operations
-  bool GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items);
-  bool GetShares(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items);
-  int Stat(const VFSURL& url, struct __stat64* buffer);
-  bool Delete(const VFSURL& url);
-  bool Rename(const VFSURL& url, const VFSURL& url2);
-  bool RemoveDirectory(const VFSURL& url);
-  bool CreateDirectory(const VFSURL& url);
+  bool GetDirectory(const kodi::addon::VFSUrl& url, std::vector<kodi::vfs::CDirEntry>& items);
+  bool GetShares(const kodi::addon::VFSUrl& url, std::vector<kodi::vfs::CDirEntry>& items);
+  int Stat(const kodi::addon::VFSUrl& url, struct __stat64* buffer);
+  bool Delete(const kodi::addon::VFSUrl& url);
+  bool Rename(const kodi::addon::VFSUrl& url, const kodi::addon::VFSUrl& url2);
+  bool RemoveDirectory(const kodi::addon::VFSUrl& url);
+  bool CreateDirectory(const kodi::addon::VFSUrl& url);
 
   // file operations
   bool CloseFile(void* context);
@@ -106,7 +106,7 @@ private:
             , std::string& password, std::string& sharename);
   bool Connect(std::string& hostname, std::string& domain, std::string& username
              , std::string& password, std::string& sharename);
-  struct file_open* OpenFile(const VFSURL& url, int mode = O_RDONLY);
+  struct file_open* OpenFile(const kodi::addon::VFSUrl& url, int mode = O_RDONLY);
   void CloseHandle(struct smb2fh* file);
   int Stat(struct smb2fh* file, struct __stat64* buffer);
   int ProcessAsync(const std::string& cmd, struct sync_cb_data& cb_data, async_func func);

@@ -7,6 +7,7 @@
  */
 
 #include <inttypes.h>
+
 extern "C"
 {
 #include <smb2/smb2.h>
@@ -46,12 +47,17 @@ mutex_t CSMBSessionManager::m_sess_mutex;
 session_map_t CSMBSessionManager::m_sessions;
 int CSMBSessionManager::m_lastError = 0;
 
-static std::string to_tree_path(const VFSURL &url)
+static std::string to_tree_path(const kodi::addon::VFSUrl& url)
 {
-  if (strlen(url.filename) <= strlen(url.sharename) + 1)
+  // for shares enumeration share name must be "IPC$"
+  std::string sharename = url.GetSharename();
+  if (sharename.empty())
+    sharename = "IPC$";
+
+  if (url.GetFilename().length() <= sharename.length() + 1)
     return "";
 
-  std::string strPath(url.filename + strlen(url.sharename) + 1);
+  std::string strPath(url.GetFilename().c_str() + sharename.length() + 1);
   std::replace(strPath.begin(), strPath.end(), '/', '\\');
 
   if (strPath.back() == '\\')
@@ -104,14 +110,7 @@ static int wait_for_reply(struct smb2_context* smb2, sync_cb_data &cb_data)
 
 std::string get_host_name()
 {
-  std::string result;
-  char* buf = new char[256];
-  if (!gethostname(buf, 256))
-  {
-    result = buf;
-  }
-  delete[] buf;
-  return result;
+  return kodi::network::GetHostname();
 }
 
 void smb2_stat_to_system(struct smb2_stat_64& smb2_st, struct __stat64& sys_st)
@@ -125,13 +124,16 @@ void smb2_stat_to_system(struct smb2_stat_64& smb2_st, struct __stat64& sys_st)
   sys_st.st_ctime = smb2_st.smb2_ctime;
 }
 
-CSMBSessionPtr CSMBSessionManager::Open(const VFSURL &url)
+CSMBSessionPtr CSMBSessionManager::Open(const kodi::addon::VFSUrl& url)
 {
-  std::string hostname = url.hostname;
-  std::string sharename = url.sharename;
-  std::string domain = !strlen(url.domain) ? "MicrosoftAccount" : url.domain;
-  std::string username = !strlen(url.username) ? "Guest" : url.username;
-  std::string password = url.password;
+  std::string hostname = url.GetHostname();
+  // for shares enumeration share name must be "IPC$"
+  std::string sharename = url.GetSharename();
+  if (sharename.empty())
+    sharename = "IPC$";
+  std::string domain = url.GetDomain().empty() ? "MicrosoftAccount" : url.GetDomain();
+  std::string username = url.GetUsername().empty() ? "Guest" : url.GetUsername();
+  std::string password = url.GetPassword();
   std::string key = domain + ';' + username + '@' + hostname + '/' + sharename;
   std::transform(key.begin(), key.end(), key.begin(), ::tolower);
 
@@ -155,7 +157,7 @@ CSMBSessionPtr CSMBSessionManager::Open(const VFSURL &url)
   return new_sess;
 }
 
-void* CSMBSessionManager::OpenFile(const VFSURL& url, int mode /*= O_RDONLY*/)
+void* CSMBSessionManager::OpenFile(const kodi::addon::VFSUrl& url, int mode /*= O_RDONLY*/)
 {
   CSMBSessionPtr session = Open(url);
   if (!session)
@@ -253,7 +255,7 @@ bool CSMBSession::IsIdle() const
   return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - lastAccess).count() > CONTEXT_TIMEOUT;
 }
 
-bool CSMBSession::GetShares(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items)
+bool CSMBSession::GetShares(const kodi::addon::VFSUrl& url, std::vector<kodi::vfs::CDirEntry>& items)
 {
   struct sync_cb_data cb_data = { 0 };
 
@@ -281,7 +283,7 @@ bool CSMBSession::GetShares(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
       || reply->ctr->ctr1.array[i].type & SHARE_TYPE_HIDDEN)
       continue;
 
-    std::string item_path = std::string(url.url) + std::string(reply->ctr->ctr1.array[i].name);
+    std::string item_path = std::string(url.GetURL()) + std::string(reply->ctr->ctr1.array[i].name);
     if (item_path[item_path.size() - 1] != '/')
       item_path += '/';
 
@@ -296,7 +298,7 @@ bool CSMBSession::GetShares(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>
   return true;
 }
 
-bool CSMBSession::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEntry>& items)
+bool CSMBSession::GetDirectory(const kodi::addon::VFSUrl& url, std::vector<kodi::vfs::CDirEntry>& items)
 {
   struct sync_cb_data cb_data = { 0 };
   std::string path = to_tree_path(url);
@@ -328,7 +330,7 @@ bool CSMBSession::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEnt
     bool bIsDir = smbdirent->st.smb2_type == SMB2_TYPE_DIRECTORY;
     int64_t iSize = smbdirent->st.smb2_size;
     int64_t lTimeDate = smbdirent->st.smb2_mtime;
-    std::string item_path = std::string(url.url) + std::string(smbdirent->name);
+    std::string item_path = url.GetURL() + std::string(smbdirent->name);
 
     if (lTimeDate == 0)
     {
@@ -367,7 +369,7 @@ bool CSMBSession::GetDirectory(const VFSURL& url, std::vector<kodi::vfs::CDirEnt
   return true;
 }
 
-int CSMBSession::Stat(const VFSURL& url, struct __stat64* buffer)
+int CSMBSession::Stat(const kodi::addon::VFSUrl& url, struct __stat64* buffer)
 {
   std::string path = to_tree_path(url);
 
@@ -391,7 +393,7 @@ int CSMBSession::Stat(const VFSURL& url, struct __stat64* buffer)
   return cb_data.status;
 }
 
-bool CSMBSession::Delete(const VFSURL& url)
+bool CSMBSession::Delete(const kodi::addon::VFSUrl& url)
 {
   struct sync_cb_data cb_data = { 0 };
   std::string path = to_tree_path(url);
@@ -408,7 +410,7 @@ bool CSMBSession::Delete(const VFSURL& url)
   return cb_data.status == 0;
 }
 
-bool CSMBSession::RemoveDirectory(const VFSURL& url)
+bool CSMBSession::RemoveDirectory(const kodi::addon::VFSUrl& url)
 {
   struct sync_cb_data cb_data = { 0 };
 
@@ -431,7 +433,7 @@ bool CSMBSession::RemoveDirectory(const VFSURL& url)
   return cb_data.status = 0;
 }
 
-bool CSMBSession::CreateDirectory(const VFSURL& url)
+bool CSMBSession::CreateDirectory(const kodi::addon::VFSUrl& url)
 {
   struct sync_cb_data cb_data = { 0 };
 
@@ -457,7 +459,7 @@ int CSMBSession::Stat(smb2fh* file, struct __stat64* buffer)
 {
   struct sync_cb_data cb_data = { 0 };
   struct smb2_stat_64 st;
-  
+
   if (!IsValid())
     return -1;
 
@@ -475,7 +477,7 @@ int CSMBSession::Stat(smb2fh* file, struct __stat64* buffer)
   return cb_data.status;
 }
 
-struct file_open* CSMBSession::OpenFile(const VFSURL& url, int mode /*= O_RDONLY*/)
+struct file_open* CSMBSession::OpenFile(const kodi::addon::VFSUrl& url, int mode /*= O_RDONLY*/)
 {
   struct file_open *file = nullptr;
   struct sync_cb_data cb_data = { 0 };
@@ -489,7 +491,7 @@ struct file_open* CSMBSession::OpenFile(const VFSURL& url, int mode /*= O_RDONLY
     return smb2_open_async(ctx, path.c_str(), mode, cb, &data);
   });
 
-  if (cb_data.status) 
+  if (cb_data.status)
   {
     lastError = ret;
     kodi::Log(ADDON_LOG_INFO, "SMB2: unable to open file: '%s' error: '%s'", path.c_str(), smb2_get_error(smb_context));
@@ -524,7 +526,7 @@ struct file_open* CSMBSession::OpenFile(const VFSURL& url, int mode /*= O_RDONLY
   return file;
 }
 
-bool CSMBSession::Rename(const VFSURL & url, const VFSURL & url2)
+bool CSMBSession::Rename(const kodi::addon::VFSUrl& url, const kodi::addon::VFSUrl& url2)
 {
   struct sync_cb_data cb_data = { 0 };
   std::string oldpath = to_tree_path(url);

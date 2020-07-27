@@ -1,59 +1,50 @@
-.build
-.cproject
-.deps
-.libs
-.project
-.settings
+# build artifacts
+build/
+vfs.*/addon.xml
 
-build
-Build
+# Debian build files
+debian/changelog
+debian/files
+debian/*.log
+debian/*.substvars
+debian/.debhelper/
+debian/tmp/
+debian/kodi-vfs-*/
+obj-x86_64-linux-gnu/
 
-.dummy
-.dummy.in
-aclocal.m4
-autom4te.cache
-config.log
-config.status
-config.guess
-config.sub
-configure
-configure.lineno
-depcomp
-INSTALL
-install-sh
-libtool
-ltmain.sh
-Makefile
-Makefile.in
-Makefile.include
-Makefile.include.in
-missing
-compile
-.dirstamp
+# commonly used editors
+# vim
+*.swp
 
-*.o
-*.a
-*.P
-*.lo
-*.la
-*.zip
-*.m4
-*.so
+# Eclipse
+*.project
+*.cproject
+.classpath
+*.sublime-*
+.settings/
 
-*.idb
-*.tlog
-*.lastbuildstate
+# KDevelop 4
+*.kdev4
 
-# Windows specific generated files
-*.exp
-*.lib
-*.dll
-*.pdb
-*.ilk
-*.obj
-*.suo
-*.sdf
-*.opensdf
-*.vcxproj.user
+# gedit
+*~
 
-*/addon.xml
+# CLion
+/.idea
+
+# clion
+.idea/
+
+# to prevent add after a "git format-patch VALUE" and "git add ." call
+/*.patch
+
+# Visual Studio Code
+.vscode
+
+# to prevent add if project code opened by Visual Studio over CMake file
+.vs/
+
+# General MacOS
+.DS_Store
+.AppleDouble
+.LSOverride

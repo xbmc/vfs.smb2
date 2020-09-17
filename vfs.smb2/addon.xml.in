@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon
   id="vfs.smb2"
-  version="2.1.0"
+  version="3.0.0"
   name="SMB support (libsmb2)"
   provider-name="afedchin">
   <requires>@ADDON_DEPENDS@</requires>
@@ -25,5 +25,7 @@
     <summary lang="en_GB">The add-on provides SMB2/3 protocol support</summary>
     <description lang="en_GB">The add-on provides SMB2/3 protocol support</description>
     <platform>@PLATFORM@</platform>
+    <license>GPL-2.0-or-later</license>
+    <source>https://github.com/afedchin/vfs.smb2</source>
   </extension>
 </addon>

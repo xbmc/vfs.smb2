@@ -23,7 +23,7 @@ struct netbios_ns_entry;
 class CSMBFile : public kodi::addon::CInstanceVFS, public std::recursive_mutex
 {
 public:
-  CSMBFile(KODI_HANDLE instance, const std::string& version);
+  CSMBFile(const kodi::addon::IInstanceInfo& instance);
 
   kodi::addon::VFSFileHandle Open(const kodi::addon::VFSUrl& url) override;
   kodi::addon::VFSFileHandle OpenForWrite(const kodi::addon::VFSUrl& url, bool overWrite) override;
@@ -66,13 +66,14 @@ private:
   std::vector<netbios_host> m_discovered;
 };
 
-class ATTRIBUTE_HIDDEN CMyAddon : public kodi::addon::CAddonBase
+class ATTR_DLL_LOCAL CMyAddon : public kodi::addon::CAddonBase
 {
 public:
   CMyAddon() = default;
-  ADDON_STATUS CreateInstance(int instanceType, const std::string& instanceID, KODI_HANDLE instance, const std::string& version, KODI_HANDLE& addonInstance) override
+  ADDON_STATUS CreateInstance(const kodi::addon::IInstanceInfo& instance,
+                              KODI_ADDON_INSTANCE_HDL& hdl) override
   {
-    addonInstance = new CSMBFile(instance, version);
+    hdl = new CSMBFile(instance);
     return ADDON_STATUS_OK;
   }
 };

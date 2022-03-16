@@ -17,6 +17,7 @@ extern "C"
 
 #include <chrono>
 #include <fcntl.h>
+#include <functional>
 #include <list>
 #include <map>
 #include <mutex>

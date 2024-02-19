@@ -21,14 +21,6 @@ jobs:
 
     strategy:
       matrix:
-        Win32:
-          GENERATOR: "Visual Studio 17 2022"
-          ARCHITECTURE: Win32
-          CONFIGURATION: Release
-        Win64:
-          GENERATOR: "Visual Studio 17 2022"
-          ARCHITECTURE: x64
-          CONFIGURATION: Release
         Win32-UWP:
           GENERATOR: "Visual Studio 17 2022"
           ARCHITECTURE: Win32
